@@ -1,16 +1,16 @@
 export class InfiniteScroller extends HTMLElement {
-    constructor() {
-        super();
-        this.attachShadow({ mode: 'open' });
-    }
+  constructor() {
+    super()
+    this.attachShadow({ mode: 'open' })
+  }
 
-    connectedCallback() {
-        this.render();
-    }
+  connectedCallback() {
+    this.render()
+  }
 
-    render() {
-        if (this.shadowRoot) {
-            this.shadowRoot.innerHTML = `
+  render() {
+    if (this.shadowRoot) {
+      this.shadowRoot.innerHTML = `
         <style>
           :host {
             display: block;
@@ -29,15 +29,15 @@ export class InfiniteScroller extends HTMLElement {
           <p>This is a framework-agnostic web component.</p>
           <slot></slot>
         </div>
-      `;
-        }
+      `
     }
+  }
 }
 
-// Function to register the component manually if needed, 
+// Function to register the component manually if needed,
 // though often it's better to let the user do it or do it automatically in the index.
 export function register(tagName: string = 'infinite-scroller') {
-    if (!customElements.get(tagName)) {
-        customElements.define(tagName, InfiniteScroller);
-    }
+  if (!customElements.get(tagName)) {
+    customElements.define(tagName, InfiniteScroller)
+  }
 }
