@@ -1,3 +1,6 @@
+import styles from './style.css?inline'
+import template from './template.html?raw'
+
 export class InfiniteScroller extends HTMLElement {
   constructor() {
     super()
@@ -12,23 +15,9 @@ export class InfiniteScroller extends HTMLElement {
     if (this.shadowRoot) {
       this.shadowRoot.innerHTML = `
         <style>
-          :host {
-            display: block;
-            padding: 20px;
-            background: #f0f0f0;
-            border: 1px solid #ccc;
-            font-family: sans-serif;
-          }
-          h2 {
-            margin-top: 0;
-            color: #333;
-          }
+          ${styles}
         </style>
-        <div class="scroller-container">
-          <h2>Infinite Scroller Component</h2>
-          <p>This is a framework-agnostic web component.</p>
-          <slot></slot>
-        </div>
+        ${template}
       `
     }
   }
