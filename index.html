@@ -1,18 +1,177 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Infinite Scroller Demo</title>
-  </head>
 
-  <body>
-    <h1>Testing Infinite Scroller</h1>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infinite Scroller - Bi-directional</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
 
-    <infinite-scroller>
-      <p>Slotted content works!</p>
-    </infinite-scroller>
+    .item {
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      padding: 20px;
+      margin: 10px 0;
+      border-radius: 4px;
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-    <script type="module" src="/src/index.ts"></script>
-  </body>
+    .page-marker {
+      text-align: center;
+      background: #333;
+      color: #fff;
+      padding: 5px;
+      font-size: 0.8rem;
+    }
+
+    /* Ensure anchoring works */
+    #content-area {
+      overflow-anchor: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Infinite Scroller - Bi-directional & Windowing</h1>
+  <p>Scroll up or down. We simulate network latency.</p>
+  <p>Status: <span id="status">Idle</span></p>
+  <p>Pages Loaded: <span id="pages-loaded"></span></p>
+
+  <infinite-scroller id="scroller">
+    <div id="content-area"></div>
+  </infinite-scroller>
+
+  <script type="module">
+    import { register } from './src/index.ts'
+    import { ApiSimulator } from './src/api-simulator.ts'
+
+    register();
+
+    const api = new ApiSimulator();
+    const scroller = document.getElementById('scroller');
+    const contentArea = document.getElementById('content-area');
+    const statusSpan = document.getElementById('status');
+    const pagesLoadedSpan = document.getElementById('pages-loaded');
+
+    // State
+    let loadedPages = new Map(); // pageNum -> Element (Div containing items)
+
+    // We want to keep max N pages.
+    const MAX_PAGES = 5;
+
+    // URL Params
+    const urlParams = new URLSearchParams(window.location.search);
+    const startPage = parseInt(urlParams.get('page')) || 10;
+
+    // Start at page X
+    let minPage = startPage;
+    let maxPage = startPage;
+
+    async function loadPage(pageNum, position) {
+      if (loadedPages.has(pageNum)) return;
+
+      // Prevent re-entry if already loading (simple lock)
+      if (scroller.isLoading) return;
+      scroller.isLoading = true;
+      statusSpan.textContent = `Loading Page ${pageNum}...`;
+
+      try {
+        const data = await api.getPage(pageNum);
+
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'page-container';
+        pageDiv.dataset.page = pageNum;
+
+        const header = document.createElement('div');
+        header.className = 'page-marker';
+        header.textContent = `--- Page ${pageNum} ---`;
+        pageDiv.appendChild(header);
+
+        data.items.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'item';
+          div.textContent = item.text;
+          pageDiv.appendChild(div);
+        });
+
+        // Insert into DOM
+        if (position === 'append') {
+          contentArea.appendChild(pageDiv);
+          maxPage = Math.max(maxPage, pageNum);
+        } else {
+          // PREPEND
+          contentArea.insertBefore(pageDiv, contentArea.firstElementChild);
+          minPage = Math.min(minPage, pageNum);
+        }
+
+        loadedPages.set(pageNum, pageDiv);
+
+        // Prune
+        prunePages(position);
+
+        updateDebug();
+
+      } finally {
+        scroller.isLoading = false;
+        statusSpan.textContent = 'Idle';
+      }
+    }
+
+    function prunePages(lastAction) {
+      if (loadedPages.size > MAX_PAGES) {
+        if (lastAction === 'append') {
+          const pageToRemove = minPage;
+          const el = loadedPages.get(pageToRemove);
+          if (el) {
+            el.remove();
+            loadedPages.delete(pageToRemove);
+            minPage++;
+          }
+        } else {
+          const pageToRemove = maxPage;
+          const el = loadedPages.get(pageToRemove);
+          if (el) {
+            el.remove();
+            loadedPages.delete(pageToRemove);
+            maxPage--;
+          }
+        }
+      }
+    }
+
+    function updateDebug() {
+      const pages = Array.from(loadedPages.keys()).sort((a, b) => a - b);
+      pagesLoadedSpan.textContent = pages.join(', ');
+    }
+
+    // Initial Load
+    // We use 'append' for the first one.
+    // If startPage=4, we are at Y=0.
+    // Ideally user might want to load previous if at top.
+    loadPage(startPage, 'append');
+
+    // Event Listeners
+    scroller.addEventListener('load-next', (e) => {
+      console.log('Event: load-next', e);
+      loadPage(maxPage + 1, 'append');
+    });
+
+    scroller.addEventListener('load-prev', (e) => {
+      console.log('Event: load-prev', e);
+      if (minPage > 1) {
+        loadPage(minPage - 1, 'prepend');
+      }
+    });
+
+  </script>
+</body>
+
 </html>
