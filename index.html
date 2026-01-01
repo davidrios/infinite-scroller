@@ -65,11 +65,12 @@
     let loadedPages = new Map(); // pageNum -> Element (Div containing items)
 
     // We want to keep max N pages.
-    const MAX_PAGES = 5;
+    const MAX_PAGES = 10;
+    const BUFFER_SIZE = 2; // Keep at least 2 pages above and below
 
     // URL Params
     const urlParams = new URLSearchParams(window.location.search);
-    const startPage = parseInt(urlParams.get('page')) || 10;
+    const startPage = parseInt(urlParams.get('page')) || 1;
 
     // Start at page X
     let minPage = startPage;
@@ -127,21 +128,22 @@
 
     function prunePages(lastAction) {
       if (loadedPages.size > MAX_PAGES) {
+        const sortedPages = Array.from(loadedPages.keys()).sort((a, b) => a - b);
         if (lastAction === 'append') {
-          const pageToRemove = minPage;
+          const pageToRemove = sortedPages[0];
           const el = loadedPages.get(pageToRemove);
           if (el) {
             el.remove();
             loadedPages.delete(pageToRemove);
-            minPage++;
+            minPage = sortedPages[1];
           }
         } else {
-          const pageToRemove = maxPage;
+          const pageToRemove = sortedPages[sortedPages.length - 1];
           const el = loadedPages.get(pageToRemove);
           if (el) {
             el.remove();
             loadedPages.delete(pageToRemove);
-            maxPage--;
+            maxPage = sortedPages[sortedPages.length - 2];
           }
         }
       }
@@ -152,11 +154,25 @@
       pagesLoadedSpan.textContent = pages.join(', ');
     }
 
-    // Initial Load
-    // We use 'append' for the first one.
-    // If startPage=4, we are at Y=0.
-    // Ideally user might want to load previous if at top.
-    loadPage(startPage, 'append');
+    // Initial Load: Load start page and buffer
+    async function init() {
+      await loadPage(startPage, 'append');
+
+      // Load 2 pages down
+      for (let i = 1; i <= BUFFER_SIZE; i++) {
+        await loadPage(startPage + i, 'append');
+      }
+
+      // Load 2 pages up if possible
+      for (let i = 1; i <= BUFFER_SIZE; i++) {
+        const prevPage = startPage - i;
+        if (prevPage >= 1) {
+          await loadPage(prevPage, 'prepend');
+        }
+      }
+    }
+
+    init();
 
     // Event Listeners
     scroller.addEventListener('load-next', (e) => {

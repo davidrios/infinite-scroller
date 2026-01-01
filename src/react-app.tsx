@@ -24,15 +24,24 @@ const App = () => {
     const scrollerRef = useRef<HTMLElement>(null)
     const loadingRef = useRef(false) // Use ref for immediate lock
 
-    // We start at page 10
-    const [minPage, setMinPage] = useState(10)
-    const [maxPage, setMaxPage] = useState(10)
+    // We start at page 1
+    const [minPage, setMinPage] = useState(1)
+    const [maxPage, setMaxPage] = useState(1)
+
+    const BUFFER_SIZE = 2
+    const MAX_PAGES = 10
 
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // Initial Load
+    // Initial Load: Load start page and buffer
     useEffect(() => {
-        loadPage(10, 'append')
+        const init = async () => {
+            await loadPage(1, 'append')
+            for (let i = 1; i <= BUFFER_SIZE; i++) {
+                await loadPage(1 + i, 'append')
+            }
+        }
+        init()
     }, [])
 
     const loadPage = async (pageNum: number, position: 'append' | 'prepend') => {
@@ -49,12 +58,12 @@ const App = () => {
 
                 let newPages = position === 'append' ? [...prev, data] : [data, ...prev]
 
-                // Sliding window: keep max 5
-                if (newPages.length > 5) {
+                // Sliding window: keep max 10
+                if (newPages.length > MAX_PAGES) {
                     if (position === 'append') {
                         newPages = newPages.slice(1)
                     } else {
-                        newPages = newPages.slice(0, 5)
+                        newPages = newPages.slice(0, MAX_PAGES)
                     }
                 }
 

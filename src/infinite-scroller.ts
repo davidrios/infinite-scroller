@@ -34,7 +34,7 @@ export class InfiniteScroller extends HTMLElement {
     // If we finished loading, re-attach observer to check if we are still intersecting
     // This allows sequential loads if the buffer isn't full yet.
     if (name === 'loading' && oldValue !== null && newValue === null) {
-      this.setupObserver()
+      setTimeout(() => this.setupObserver(), 50)
     }
   }
 
@@ -86,8 +86,8 @@ export class InfiniteScroller extends HTMLElement {
     // root: null means viewport
     const options = {
       root: root as Element | null,
-      rootMargin: '100px', // Preload a bit earlier
-      threshold: 0.1
+      rootMargin: '1000px', // Preload 2 pages (each page ~500px to 1000px depending on content)
+      threshold: 0
     }
 
     this.observer = new IntersectionObserver((entries) => {

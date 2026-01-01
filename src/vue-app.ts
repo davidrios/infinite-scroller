@@ -35,7 +35,9 @@ const App = {
 
         // Support starting at a specific page via URL: /vue-demo.html?page=4
         const urlParams = new URLSearchParams(window.location.search);
-        const startPage = parseInt(urlParams.get('page') || '10');
+        const startPage = parseInt(urlParams.get('page') || '1');
+        const BUFFER_SIZE = 2;
+        const MAX_PAGES = 10;
 
         const minPage = ref(startPage)
         const maxPage = ref(startPage)
@@ -55,18 +57,15 @@ const App = {
                 if (position === 'append') {
                     pages.value.push(data)
                     // Windowing
-                    if (pages.value.length > 5) {
+                    if (pages.value.length > MAX_PAGES) {
                         pages.value.shift()
                     }
                     maxPage.value = Math.max(maxPage.value, pageNum)
-                    // If we shifted, minPage changes implicitly based on content, 
-                    // but for our tracking we should probably update it.
-                    // Assuming contiguous:
                     minPage.value = pages.value[0].page
                 } else {
                     pages.value.unshift(data)
                     // Windowing
-                    if (pages.value.length > 5) {
+                    if (pages.value.length > MAX_PAGES) {
                         pages.value.pop()
                     }
                     minPage.value = Math.min(minPage.value, pageNum)
@@ -88,8 +87,15 @@ const App = {
             }
         }
 
-        onMounted(() => {
-            loadPage(startPage, 'append')
+        onMounted(async () => {
+            await loadPage(startPage, 'append')
+            for (let i = 1; i <= BUFFER_SIZE; i++) {
+                await loadPage(startPage + i, 'append')
+            }
+            for (let i = 1; i <= BUFFER_SIZE; i++) {
+                const prev = startPage - i
+                if (prev >= 1) await loadPage(prev, 'prepend')
+            }
         })
 
         return {
