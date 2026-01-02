@@ -86,11 +86,14 @@ const App = {
                     }
                 }
 
-                // Update min/max pointers based on visible (non-virtual) or actually loaded
-                const realPages = pages.value.filter(p => !p.isVirtual);
-                if (realPages.length > 0) {
-                    minPage.value = realPages[0].page;
-                    maxPage.value = realPages[realPages.length - 1].page;
+                // Update min/max pointers based on hydrated pages
+                const hydratedPageNumbers = pages.value
+                    .filter(p => !p.isVirtual)
+                    .map(p => p.page)
+                    .sort((a, b) => a - b);
+                if (hydratedPageNumbers.length > 0) {
+                    minPage.value = hydratedPageNumbers[0];
+                    maxPage.value = hydratedPageNumbers[hydratedPageNumbers.length - 1];
                 }
 
             } finally {

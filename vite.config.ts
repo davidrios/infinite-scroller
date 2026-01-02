@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import dts from 'vite-plugin-dts'
 
 export default defineConfig({
+  server: {
+    port: 5183
+  },
   resolve: {
     alias: {
       vue: 'vue/dist/vue.esm-bundler.js'

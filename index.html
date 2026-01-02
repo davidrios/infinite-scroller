@@ -77,7 +77,9 @@
     let maxPage = startPage;
 
     async function loadPage(pageNum, position) {
-      if (loadedPages.has(pageNum) && !loadedPages.get(pageNum).classList.contains('page-container')) return;
+      // Skip if already loaded and hydrated (has content)
+      const existing = loadedPages.get(pageNum);
+      if (existing && existing.children.length > 0) return;
 
       // Prevent re-entry if already loading (simple lock)
       if (scroller.isLoading) return;
@@ -114,7 +116,7 @@
           pageDiv.appendChild(div);
         });
 
-        // Insert into DOM if new
+        // Insert into DOM if new, or update tracking if rehydrating
         if (!isRehydrating) {
           if (position === 'append') {
             contentArea.appendChild(pageDiv);
@@ -125,6 +127,13 @@
             minPage = Math.min(minPage, pageNum);
           }
           loadedPages.set(pageNum, pageDiv);
+        } else {
+          // When rehydrating, update our tracking of min/max hydrated pages
+          if (position === 'append') {
+            maxPage = Math.max(maxPage, pageNum);
+          } else {
+            minPage = Math.min(minPage, pageNum);
+          }
         }
 
         // Prune
@@ -147,11 +156,19 @@
         if (lastAction === 'append') {
           const pageToRemove = hydratedPages[0];
           virtualizePage(pageToRemove);
-          minPage = hydratedPages[1];
         } else {
           const pageToRemove = hydratedPages[hydratedPages.length - 1];
           virtualizePage(pageToRemove);
-          maxPage = hydratedPages[hydratedPages.length - 2];
+        }
+
+        // Recalculate min/max after virtualization
+        const remainingHydrated = Array.from(loadedPages.keys())
+          .filter(pageNum => loadedPages.get(pageNum).children.length > 0)
+          .sort((a, b) => a - b);
+
+        if (remainingHydrated.length > 0) {
+          minPage = remainingHydrated[0];
+          maxPage = remainingHydrated[remainingHydrated.length - 1];
         }
       }
     }
@@ -215,7 +232,10 @@
       }
     }
 
-    init();
+    init().catch(err => {
+      console.error('Init failed:', err);
+      statusSpan.textContent = 'Error: ' + err.message;
+    });
 
     // Event Listeners
     scroller.addEventListener('load-next', (e) => {

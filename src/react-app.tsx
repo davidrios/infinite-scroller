@@ -109,9 +109,15 @@ const App = () => {
             })
 
 
-            // Update pointers
-            if (position === 'append') setMaxPage(p => Math.max(p, pageNum))
-            else setMinPage(p => Math.min(p, pageNum))
+            // Update pointers to track hydrated pages
+            setPages(prev => {
+                const hydratedPages = prev.filter(p => !p.isVirtual).map(p => p.page).sort((a, b) => a - b);
+                if (hydratedPages.length > 0) {
+                    setMinPage(hydratedPages[0]);
+                    setMaxPage(hydratedPages[hydratedPages.length - 1]);
+                }
+                return prev;
+            });
 
         } finally {
             loadingRef.current = false
