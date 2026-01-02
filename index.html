@@ -77,19 +77,30 @@
     let maxPage = startPage;
 
     async function loadPage(pageNum, position) {
-      if (loadedPages.has(pageNum)) return;
+      if (loadedPages.has(pageNum) && !loadedPages.get(pageNum).classList.contains('page-container')) return;
 
       // Prevent re-entry if already loading (simple lock)
       if (scroller.isLoading) return;
+
+      // Check if we already have a container (virtualized)
+      let pageDiv = loadedPages.get(pageNum);
+      const isRehydrating = !!pageDiv;
+
       scroller.isLoading = true;
-      statusSpan.textContent = `Loading Page ${pageNum}...`;
+      statusSpan.textContent = `${isRehydrating ? 'Rehydrating' : 'Loading'} Page ${pageNum}...`;
 
       try {
         const data = await api.getPage(pageNum);
 
-        const pageDiv = document.createElement('div');
-        pageDiv.className = 'page-container';
-        pageDiv.dataset.page = pageNum;
+        if (!pageDiv) {
+          pageDiv = document.createElement('div');
+          pageDiv.className = 'page-container';
+          pageDiv.dataset.page = pageNum;
+        } else {
+          // Clear current content (placeholder or old items)
+          pageDiv.innerHTML = '';
+          pageDiv.style.height = '';
+        }
 
         const header = document.createElement('div');
         header.className = 'page-marker';
@@ -103,17 +114,18 @@
           pageDiv.appendChild(div);
         });
 
-        // Insert into DOM
-        if (position === 'append') {
-          contentArea.appendChild(pageDiv);
-          maxPage = Math.max(maxPage, pageNum);
-        } else {
-          // PREPEND
-          contentArea.insertBefore(pageDiv, contentArea.firstElementChild);
-          minPage = Math.min(minPage, pageNum);
+        // Insert into DOM if new
+        if (!isRehydrating) {
+          if (position === 'append') {
+            contentArea.appendChild(pageDiv);
+            maxPage = Math.max(maxPage, pageNum);
+          } else {
+            // PREPEND
+            contentArea.insertBefore(pageDiv, contentArea.firstElementChild);
+            minPage = Math.min(minPage, pageNum);
+          }
+          loadedPages.set(pageNum, pageDiv);
         }
-
-        loadedPages.set(pageNum, pageDiv);
 
         // Prune
         prunePages(position);
@@ -127,26 +139,43 @@
     }
 
     function prunePages(lastAction) {
-      if (loadedPages.size > MAX_PAGES) {
-        const sortedPages = Array.from(loadedPages.keys()).sort((a, b) => a - b);
+      const hydratedPages = Array.from(loadedPages.keys())
+        .filter(pageNum => loadedPages.get(pageNum).children.length > 0)
+        .sort((a, b) => a - b);
+
+      if (hydratedPages.length > MAX_PAGES) {
         if (lastAction === 'append') {
-          const pageToRemove = sortedPages[0];
-          const el = loadedPages.get(pageToRemove);
-          if (el) {
-            el.remove();
-            loadedPages.delete(pageToRemove);
-            minPage = sortedPages[1];
-          }
+          const pageToRemove = hydratedPages[0];
+          virtualizePage(pageToRemove);
+          minPage = hydratedPages[1];
         } else {
-          const pageToRemove = sortedPages[sortedPages.length - 1];
-          const el = loadedPages.get(pageToRemove);
-          if (el) {
-            el.remove();
-            loadedPages.delete(pageToRemove);
-            maxPage = sortedPages[sortedPages.length - 2];
-          }
+          const pageToRemove = hydratedPages[hydratedPages.length - 1];
+          virtualizePage(pageToRemove);
+          maxPage = hydratedPages[hydratedPages.length - 2];
         }
       }
+    }
+
+    function virtualizePage(pageNum) {
+      const el = loadedPages.get(pageNum);
+      if (el && el.children.length > 0) {
+        const rect = el.getBoundingClientRect();
+        el.style.height = `${rect.height}px`;
+        el.innerHTML = ''; // Keep size, drop content
+        // We keep it in loadedPages but it's now "virtual"
+      }
+    }
+
+    function createPlaceholders(uptoPage) {
+      for (let i = 1; i < uptoPage; i++) {
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'page-container';
+        pageDiv.dataset.page = i;
+        pageDiv.style.height = '80vh'; // Configurable default height
+        contentArea.appendChild(pageDiv);
+        loadedPages.set(i, pageDiv);
+      }
+      minPage = 1;
     }
 
     function updateDebug() {
@@ -156,6 +185,10 @@
 
     // Initial Load: Load start page and buffer
     async function init() {
+      if (startPage > 1) {
+        createPlaceholders(startPage);
+      }
+
       await loadPage(startPage, 'append');
 
       // Load 2 pages down
@@ -169,6 +202,16 @@
         if (prevPage >= 1) {
           await loadPage(prevPage, 'prepend');
         }
+      }
+
+      // If we started deep, we need to ensure we are visible
+      if (startPage > 1) {
+        setTimeout(() => {
+          const target = loadedPages.get(startPage);
+          if (target) {
+            target.scrollIntoView({ block: 'start' });
+          }
+        }, 500);
       }
     }
 

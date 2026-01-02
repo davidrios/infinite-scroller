@@ -44,34 +44,40 @@ for (const { name, url } of SCENARIOS) {
                 await page.waitForTimeout(100);
             }
 
-            // Now we should have e.g. 12, 13, 14, 15, 16 (Page 10 and 11 gone?)
-            // Check total count
-            const containers = page.locator('.page-container');
-            const count = await containers.count();
-            expect(count).toBeLessThanOrEqual(10);
+            // In virtualization mode, containers stay in DOM but content is cleared.
+            // Check count of containers with markers
+            const markers = page.locator('.page-marker');
+            const markersCount = await markers.count();
+            expect(markersCount).toBeLessThanOrEqual(10);
 
-            // Expect Page 1 to be gone (since we loaded up to 12, and 1-7 should be gone if we keep 10? Wait.)
-            // If we have 4,5,6,7,8,9,10,11,12 that is 9 pages. 
-            // If we start at 1, and load 2,3 (init) then scroll to 12.
-            // 1,2,3,4,5,6,7,8,9,10,11,12 -> 12 pages.
-            // Pruning to 10 should remove 1 and 2.
+            // Expect Page 1 marker to be gone (virtualized)
             await expect(page.locator('text=--- Page 1 ---')).not.toBeVisible();
         });
     });
 }
 
 test.describe('Start Page Feature', () => {
-    test('should start at specific page and load prev', async ({ page }) => {
-        // Start at Page 4
-        await page.goto('/?page=4');
+    test('should start at specific page and show placeholders', async ({ page }) => {
+        // Start at Page 10
+        await page.goto('/?page=10');
 
-        // Should show Page 4, plus 2,3 and 5,6 as buffer
-        await expect(page.locator('text=--- Page 4 ---')).toBeVisible();
-        await expect(page.locator('text=--- Page 2 ---')).toBeVisible();
-        await expect(page.locator('text=--- Page 6 ---')).toBeVisible();
+        // Should show Page 10
+        await expect(page.locator('text=--- Page 10 ---')).toBeVisible();
 
-        // Scroll down to load next (Page 5)
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await expect(page.locator('text=--- Page 5 ---')).toBeVisible();
+        // Should have placeholders for pages 1-9
+        // Each placeholder in vanilla has data-page and class page-container
+        const placeholders = page.locator('.page-container');
+        expect(await placeholders.count()).toBeGreaterThanOrEqual(10);
+
+        // Verify scroll position is not at top
+        // Wait for potential auto-scrolling
+        await page.waitForFunction(() => window.scrollY > 0, { timeout: 5000 }).catch(() => { });
+        const scrollY = await page.evaluate(() => window.scrollY);
+        expect(scrollY).toBeGreaterThan(0);
+
+        // Scroll up to load Page 9 (it's a placeholder, so loading it should rehydrate)
+        // We'll scroll to middle of Page 9
+        await page.locator('[data-page="9"]').scrollIntoViewIfNeeded();
+        await expect(page.locator('text=--- Page 9 ---')).toBeVisible({ timeout: 5000 });
     });
 });

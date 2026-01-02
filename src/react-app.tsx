@@ -20,7 +20,7 @@ declare global {
 }
 
 const App = () => {
-    const [pages, setPages] = useState<Page[]>([])
+    const [pages, setPages] = useState<(Page & { isVirtual?: boolean, height?: number })[]>([])
     const scrollerRef = useRef<HTMLElement>(null)
     const loadingRef = useRef(false) // Use ref for immediate lock
 
@@ -36,10 +36,32 @@ const App = () => {
     // Initial Load: Load start page and buffer
     useEffect(() => {
         const init = async () => {
-            await loadPage(1, 'append')
-            for (let i = 1; i <= BUFFER_SIZE; i++) {
-                await loadPage(1 + i, 'append')
+            const urlParams = new URLSearchParams(window.location.search);
+            const start = parseInt(urlParams.get('page') || '1');
+
+            // Create placeholders for previous pages
+            if (start > 1) {
+                const placeholders: any[] = [];
+                for (let i = 1; i < start; i++) {
+                    placeholders.push({ page: i, items: [], isVirtual: true, height: 80 * 10 }); // 80vh approx
+                }
+                setPages(placeholders);
+                setMinPage(1);
+            } else {
+                setMinPage(start);
             }
+            setMaxPage(start);
+
+            await loadPage(start, 'append')
+            for (let i = 1; i <= BUFFER_SIZE; i++) {
+                await loadPage(start + i, 'append')
+            }
+
+            // Scroll to start page if needed
+            setTimeout(() => {
+                const el = document.querySelector(`[data-page="${start}"]`);
+                if (el) el.scrollIntoView();
+            }, 100);
         }
         init()
     }, [])
@@ -53,17 +75,33 @@ const App = () => {
             const data = await api.getPage(pageNum)
 
             setPages(prev => {
-                // Deduplicate
-                if (prev.find(p => p.page === pageNum)) return prev
+                // Find if exists
+                const existingIndex = prev.findIndex(p => p.page === pageNum);
 
-                let newPages = position === 'append' ? [...prev, data] : [data, ...prev]
+                let newPages = [...prev];
+                if (existingIndex !== -1) {
+                    newPages[existingIndex] = { ...data, isVirtual: false };
+                } else {
+                    if (position === 'append') newPages.push(data);
+                    else newPages.unshift(data);
+                }
 
-                // Sliding window: keep max 10
-                if (newPages.length > MAX_PAGES) {
+                const hydratedPages = newPages.filter(p => !p.isVirtual);
+                if (hydratedPages.length > MAX_PAGES) {
                     if (position === 'append') {
-                        newPages = newPages.slice(1)
+                        // Virtualize the first hydrated one
+                        const toVirtualize = hydratedPages[0];
+                        const idx = newPages.findIndex(p => p.page === toVirtualize.page);
+                        const el = document.querySelector(`[data-page="${toVirtualize.page}"]`);
+                        const height = el ? el.getBoundingClientRect().height : 800;
+                        newPages[idx] = { ...toVirtualize, isVirtual: true, height, items: [] };
                     } else {
-                        newPages = newPages.slice(0, MAX_PAGES)
+                        // Virtualize the last hydrated one
+                        const toVirtualize = hydratedPages[hydratedPages.length - 1];
+                        const idx = newPages.findIndex(p => p.page === toVirtualize.page);
+                        const el = document.querySelector(`[data-page="${toVirtualize.page}"]`);
+                        const height = el ? el.getBoundingClientRect().height : 800;
+                        newPages[idx] = { ...toVirtualize, isVirtual: true, height, items: [] };
                     }
                 }
 
@@ -116,24 +154,28 @@ const App = () => {
             <infinite-scroller ref={scrollerRef}>
                 <div ref={contentRef} style={{ overflowAnchor: 'auto' }}>
                     {pages.map(page => (
-                        <div key={page.page} className="page-container">
-                            <div style={{ background: '#333', color: '#fff', padding: 5, fontSize: '0.8rem', textAlign: 'center' }}>
-                                --- Page {page.page} ---
-                            </div>
-                            {page.items.map(item => (
-                                <div key={item.id} style={{
-                                    background: '#e3f2fd',
-                                    border: '1px solid #90caf9',
-                                    padding: 20,
-                                    margin: '10px 0',
-                                    height: 100, /* 100px height */
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    {item.text}
-                                </div>
-                            ))}
+                        <div key={page.page} className="page-container" data-page={page.page} style={{ height: page.isVirtual ? page.height : 'auto' }}>
+                            {!page.isVirtual && (
+                                <>
+                                    <div style={{ background: '#333', color: '#fff', padding: 5, fontSize: '0.8rem', textAlign: 'center' }}>
+                                        --- Page {page.page} ---
+                                    </div>
+                                    {page.items.map(item => (
+                                        <div key={item.id} style={{
+                                            background: '#e3f2fd',
+                                            border: '1px solid #90caf9',
+                                            padding: 20,
+                                            margin: '10px 0',
+                                            height: 100, /* 100px height */
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            {item.text}
+                                        </div>
+                                    ))}
+                                </>
+                            )}
                         </div>
                     ))}
                 </div>
