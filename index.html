@@ -76,6 +76,42 @@
     let minPage = startPage;
     let maxPage = startPage;
 
+    // Observer for rehydrating virtualized pages
+    let rehydrationObserver = null;
+
+    function setupRehydrationObserver() {
+      if (rehydrationObserver) {
+        rehydrationObserver.disconnect();
+      }
+
+      rehydrationObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const pageNum = parseInt(entry.target.dataset.page);
+            const pageEl = loadedPages.get(pageNum);
+
+            // Only rehydrate if it's virtualized (no children)
+            if (pageEl && pageEl.children.length === 0) {
+              // Determine position based on whether it's above or below current range
+              const position = pageNum < minPage ? 'prepend' : 'append';
+              loadPage(pageNum, position);
+            }
+          }
+        });
+      }, {
+        root: null, // viewport
+        rootMargin: '500px', // Trigger when within 500px of viewport
+        threshold: 0
+      });
+
+      // Observe all virtualized pages
+      loadedPages.forEach((pageEl, pageNum) => {
+        if (pageEl.children.length === 0) {
+          rehydrationObserver.observe(pageEl);
+        }
+      });
+    }
+
     async function loadPage(pageNum, position) {
       // Skip if already loaded and hydrated (has content)
       const existing = loadedPages.get(pageNum);
@@ -141,6 +177,9 @@
 
         updateDebug();
 
+        // Update rehydration observer to watch virtualized pages
+        setupRehydrationObserver();
+
       } finally {
         scroller.isLoading = false;
         statusSpan.textContent = 'Idle';
@@ -193,6 +232,9 @@
         loadedPages.set(i, pageDiv);
       }
       minPage = 1;
+
+      // Setup observer for placeholders
+      setupRehydrationObserver();
     }
 
     function updateDebug() {
