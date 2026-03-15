@@ -4,15 +4,84 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Scroller Demo</title>
+    <style>
+      body {
+        max-width: 600px;
+        margin: 40px auto;
+        padding: 0 20px;
+        background-color: #f9f9f9;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .item-card {
+        padding: 10px;
+        border: 1px solid blue;
+      }
+
+      .item-name {
+        font-weight: bold;
+        display: block;
+      }
+
+      .item-desc {
+        font-size: 0.9em;
+        color: #666;
+      }
+    </style>
   </head>
 
   <body>
-    <h1>Testing Infinite Scroller</h1>
+    <h1>Infinite Scroller Demo</h1>
+    <p>This demo shows the basic implementation fetching initial data.</p>
 
-    <infinite-scroller>
-      <p>Slotted content works!</p>
-    </infinite-scroller>
+    <infinite-scroller id="my-scroller" current-page="1"></infinite-scroller>
 
-    <script type="module" src="/src/index.ts"></script>
+    <script type="module">
+      import { register } from '/src/index.ts'
+      register()
+
+      const scroller = document.getElementById('my-scroller')
+
+      // Inject custom styles from this page's style tags
+      const pageStyles = Array.from(document.querySelectorAll('style'))
+        .map((s) => s.textContent)
+        .join('\n')
+      scroller.injectStyles(pageStyles)
+
+      // Mock fetch function
+      scroller.fetchPage = async (page) => {
+        console.log(`Fetching page ${page}...`)
+        // Simulate network delay
+        await new Promise((resolve) => setTimeout(resolve, 500))
+
+        const itemsPerPage = 4
+        const totalPages = 100
+        const items = Array.from({ length: itemsPerPage }, (_, i) => ({
+          id: (page - 1) * itemsPerPage + i + 1,
+          name: `Item ${(page - 1) * itemsPerPage + i + 1}`,
+          description: `This is the description for item ${(page - 1) * itemsPerPage + i + 1}`,
+        }))
+
+        return {
+          items,
+          currentPage: page,
+          totalPages,
+        }
+      }
+
+      // Mock render function
+      scroller.renderItem = (item) => {
+        const div = document.createElement('div')
+        div.className = 'item-card'
+        div.innerHTML = `
+          <p class="item-name">${item.name}</p>
+          <p class="item-desc">${item.description}</p>
+        `
+        return div
+      }
+
+      scroller.loadInitialPage()
+    </script>
   </body>
 </html>
