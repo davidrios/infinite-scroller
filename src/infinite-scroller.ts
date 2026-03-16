@@ -192,7 +192,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
             console.log('set page', currentPage, target, this.scrollDirection)
             this.currentPage = currentPage
           }
-          // }
         })
       },
       { threshold: 0.1 }
