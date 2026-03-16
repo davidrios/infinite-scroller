@@ -7,23 +7,26 @@
   flex-direction: column;
 }
 
-#scroller-list {
+[data-element=scroller-list] {
   list-style-type: none;
   padding: 0;
   margin: 0;
 }
 
-#loading-indicator {
+[data-element=loading-indicator] {
   padding: 16px;
   text-align: center;
   color: #666;
   font-style: italic;
 }
 
-#top-sentinel,
-#bottom-sentinel,
 .page-sentinel {
   height: 1px;
   width: 100%;
   border: 1px solid red;
+}
+
+.page-placeholder {
+  width: 100%;
+  border: 1px solid blue;
 }
