@@ -294,39 +294,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         return
       }
 
-      // let sibling: HTMLElement | null = null
-      //
-      // for (let pageNum = 1; pageNum < pagesToFetch[0]; pageNum++) {
-      //   if (this.sentinels[pageNum] != null) {
-      //     sibling = this.sentinels[pageNum].parentElement!
-      //     continue
-      //   }
-      //
-      //   const page = document.createElement('li')
-      //
-      //   if (sibling == null) {
-      //     this.listElement.append(page)
-      //     sibling = page
-      //   } else {
-      //     sibling.after(page)
-      //   }
-      //
-      //   const sentinel = document.createElement('div')
-      //   sentinel.classList.add('page-sentinel')
-      //   sentinel.dataset.page = pageNum.toString()
-      //   sentinel.innerText = pageNum.toString()
-      //   page.appendChild(sentinel)
-      //   this.observer.observe(sentinel)
-      //   this.sentinels[pageNum] = sentinel
-      //   sibling = sentinel.parentElement!
-      //
-      //   const placeholder = document.createElement('div')
-      //   placeholder.classList.add('page-placeholder')
-      //   placeholder.style.height = `${this.approximatePageHeight}px`
-      //   page.appendChild(placeholder)
-      //   this.placeholders[pageNum] = placeholder
-      // }
-
       for (let result of results) {
         this.totalPages = result.totalPages
         if (!result.items.length) {
