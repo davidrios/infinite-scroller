@@ -51,12 +51,12 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     this.pageCache = new AutoLRUCache(
       Math.max(
         parseInt(this.getAttribute('cache-size') || '1', 10),
-        this.preloadPages * 20
+        this.preloadPages * 10
       )
     )
     addGlobalStylesToShadowRoot(this.shadowRoot)
 
-    this.debouncedLoadPageAround = debounce(this.loadPageAround.bind(this), 100)
+    this.debouncedLoadPageAround = debounce(this.loadPageAround.bind(this), 200)
 
     this.clearNeedScrolling = debounce(() => {
       console.log('clear need scrolling')
@@ -77,7 +77,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         this.needScrolling = null
         this.currentPage = this.wantedPage
       }
-    }, 20)
+    }, 50)
   }
 
   set fetchPage(fn: FetchPageFn<T>) {
