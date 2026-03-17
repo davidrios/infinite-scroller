@@ -39,12 +39,23 @@
 
     <script type="module">
       import { register } from '/src/index.ts'
+      import { debounce } from '/src/utils.ts'
       register()
 
       const scroller = document.getElementById('my-scroller')
 
       scroller.addEventListener('page-changed', (e) => {
         window.location.hash = `page=${e.detail.page}`
+      })
+
+      const setPage = debounce((page) => {
+        scroller.currentPage = page
+      }, 50)
+
+      addEventListener('hashchange', (event) => {
+        const newPage = event.newURL.split('=')[1]
+        console.log('jump page', newPage)
+        setPage(parseInt(newPage))
       })
 
       const currentPage = (window.location.hash || 'page=1').split('=')[1]
@@ -57,7 +68,7 @@
         await new Promise((resolve) => setTimeout(resolve, 500))
 
         const itemsPerPage = 4
-        const totalPages = 15
+        const totalPages = 150
         if (page > totalPages) {
           return { items: [], currentPage: page, totalPages }
         }
