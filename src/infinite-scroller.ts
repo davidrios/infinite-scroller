@@ -371,15 +371,15 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       this.createExtraPlaceholders(middlePage, 'up')
       this.createExtraPlaceholders(middlePage, 'down')
 
-      const pageInfo = this.pageInfo[middlePage]!
+      const pageInfo = this.pageInfo[middlePage]
 
-      this.needScrolling = pageInfo.page
+      this.needScrolling = pageInfo?.page ?? null
       setTimeout(() => {
         if (this.needScrolling == null) {
           return
         }
 
-        if (!pageInfo.isIntersected) {
+        if (!pageInfo?.isIntersected) {
           consoleLog?.('scroll into view', this.needScrolling, middlePage)
           this.needScrolling.scrollIntoView({ behavior: 'instant' })
         } else {
@@ -457,7 +457,11 @@ export class InfiniteScroller<T = any> extends HTMLElement {
   private createExtraPlaceholders(wantPage: number, direction: 'up' | 'down') {
     const buffer = 10
 
-    let sibling = this.pageInfo[wantPage]!.page
+    let sibling = this.pageInfo[wantPage]?.page
+
+    if (sibling == null) {
+      return
+    }
 
     if (direction === 'up') {
       for (
