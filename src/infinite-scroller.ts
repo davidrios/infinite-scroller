@@ -339,7 +339,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
             let pageResult = this.pageResultCache.getById(
               this.loadedPages[pageNum] ?? -1
             )
-            if (pageResult == null && this.currentPage == middlePage) {
+            if (pageResult == null && this.currentPage === middlePage) {
               try {
                 pageResult = (await this._fetchPage?.(pageNum))!
                 this.loadedPages[pageResult.currentPage] =
@@ -436,7 +436,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     const { data, created } = this.getOrCreatePage(pageNum)
 
     if (created) {
-      if (position == 'before') {
+      if (position === 'before') {
         sibling.before(data.page)
       } else {
         sibling.after(data.page)
