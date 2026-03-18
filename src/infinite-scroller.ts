@@ -1,24 +1,544 @@
+import { AutoLRUCache } from './auto-lru-cache'
+import { addGlobalStylesToShadowRoot } from './global-styles'
+import { debounce, deduplicateAsync, DeduplicateAsyncFunction } from './utils'
+
 import styles from './style.css?inline'
 import template from './template.html?raw'
 
-export class InfiniteScroller extends HTMLElement {
+export interface PageResult<T> {
+  items: T[]
+  currentPage: number
+  totalPages: number
+}
+
+export type FetchPageFn<T> = (page: number) => Promise<PageResult<T>>
+export type RenderItemFn<T> = (item: T) => Promise<HTMLElement> | HTMLElement
+
+interface PageInfo {
+  hasError: boolean
+  page: HTMLElement
+  pageNum: number
+  firstAdded: boolean
+  isIntersected: boolean
+  pageHeight: number
+}
+
+const DEBUG = import.meta.env.DEV
+const consoleLog = DEBUG
+  ? function (...args: unknown[]) {
+      console.log(...args)
+    }
+  : null
+
+let baseStyles = styles
+if (DEBUG) {
+  baseStyles += `
+  .page-placeholder {
+    border: 1px solid green;
+  }
+  ul[data-element="scroller-list"] > li > .debug-p {
+    background: yellow;
+    position: absolute;
+    padding: 1px;
+    font-family: monospace;
+    font-size: 0.7em;
+  }
+`
+}
+
+export class InfiniteScroller<T = any> extends HTMLElement {
+  private _fetchPage?: DeduplicateAsyncFunction<
+    Parameters<FetchPageFn<T>>,
+    PageResult<T>
+  >
+  private _renderItem?: RenderItemFn<T>
+  private listElement: HTMLUListElement | null = null
+  private loadingElement: HTMLElement | null = null
+  private observer: IntersectionObserver | null = null
+  private pageResultCache: AutoLRUCache<PageResult<T>>
+  private pageInfo: Record<string, PageInfo | undefined> = {}
+  private totalPages: number = 0xffffff
+  private pagesToClear = new Map<number, boolean>()
+  private lastScrollY: number = 0
+  private scrollDirection: 'up' | 'down' = 'down'
+  private scrollHandler: (() => void) | null = null
+  private approximatePageHeight: number = -1
+  private debouncedLoadPageAround: (
+    middlePage: number,
+    doScroll?: boolean
+  ) => void
+  private needScrolling: HTMLElement | null = null
+  private clearNeedScrolling: () => void
+  private scrollingArrived: boolean = false
+  private scrollingSettled: boolean = true
+  private setScrollingSettled: () => void
+  private scrollingPage: number = -1
+  private lastIntersected: number = -1
+
   constructor() {
     super()
     this.attachShadow({ mode: 'open' })
-  }
+    this.pageResultCache = new AutoLRUCache(
+      Math.max(
+        parseInt(this.getAttribute('cache-size') || '1', 10),
+        this.preloadPages * 10
+      )
+    )
+    addGlobalStylesToShadowRoot(this.shadowRoot)
 
-  connectedCallback() {
-    this.render()
+    this.debouncedLoadPageAround = debounce(this.loadPageAround.bind(this), 200)
+
+    this.clearNeedScrolling = debounce(() => {
+      consoleLog?.('clear need scrolling')
+      this.scrollingArrived = false
+      this.needScrolling = null
+    }, 1)
+
+    this.setScrollingSettled = debounce(() => {
+      this.scrollingSettled = true
+      if (
+        this.lastIntersected > 0 &&
+        Math.abs(this.lastIntersected - this.scrollingPage) > 2
+      ) {
+        consoleLog?.('last insersected too far from scrolling page, adjusting')
+        this.scrollingPage = this.lastIntersected
+      }
+
+      consoleLog?.('scrolling settled on', this.scrollingPage)
+
+      if (this.needScrolling) {
+        consoleLog?.(
+          'scrolling settled, ignoring needScrolling',
+          this.needScrolling,
+          'and setting page to',
+          this.scrollingPage
+        )
+        this.needScrolling = null
+      }
+
+      this.currentPage = this.scrollingPage
+
+      for (const [pageNum, clear] of this.pagesToClear) {
+        if (!clear || this.pageInfo[pageNum] == null) {
+          continue
+        }
+
+        this.clearPage(this.pageInfo[pageNum])
+      }
+      this.pagesToClear = new Map()
+    }, 50)
   }
 
   render() {
-    if (this.shadowRoot) {
+    if (this.shadowRoot && !this.shadowRoot.innerHTML) {
       this.shadowRoot.innerHTML = `
         <style>
-          ${styles}
+          ${baseStyles}
         </style>
         ${template}
-      `
+`
+    }
+  }
+
+  disconnectedCallback() {
+    this.observer?.disconnect()
+    if (this.scrollHandler) {
+      window.removeEventListener('scroll', this.scrollHandler)
+    }
+  }
+
+  async connectedCallback() {
+    this.render()
+
+    this.listElement = this.shadowRoot?.querySelector(
+      '[data-element=scroller-list]'
+    )!
+    this.loadingElement = this.shadowRoot?.querySelector(
+      '[data-element=loading-indicator]'
+    )!
+
+    this.setupIntersectionObserver()
+    this.setupScrollListener()
+  }
+
+  set fetchPage(fn: FetchPageFn<T>) {
+    this._fetchPage = deduplicateAsync(fn)
+  }
+
+  set renderItem(fn: RenderItemFn<T>) {
+    this._renderItem = fn
+  }
+
+  async loadInitialPage() {
+    this.scrollingPage = this.currentPage
+    await this.loadPageAround(this.currentPage)
+  }
+
+  private get preloadPages(): number {
+    return parseInt(this.getAttribute('preload-pages') || '2', 10)
+  }
+
+  get currentPage(): number {
+    return parseInt(this.getAttribute('current-page') || '1', 10)
+  }
+
+  set currentPage(value: number) {
+    const oldValue = this.currentPage
+    if (oldValue !== value) {
+      this.debouncedLoadPageAround(value)
+      this.setAttribute('current-page', value.toString())
+      this.dispatchEvent(
+        new CustomEvent('page-changed', {
+          detail: {
+            page: value,
+            previousPage: oldValue,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      )
+    }
+  }
+
+  private setLoading(loading: boolean) {
+    if (this.loadingElement) {
+      this.loadingElement.style.display = loading ? 'block' : 'none'
+    }
+  }
+
+  private setupScrollListener() {
+    this.scrollHandler = () => {
+      const currentScrollY = window.scrollY
+      this.scrollDirection = currentScrollY > this.lastScrollY ? 'down' : 'up'
+      this.lastScrollY = currentScrollY
+    }
+    window.addEventListener('scroll', this.scrollHandler)
+  }
+
+  private setupIntersectionObserver() {
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const target = entry.target as HTMLElement
+
+          let wantPage: number | null = null
+          if (target.dataset.page != null) {
+            if (this.scrollingSettled) {
+              consoleLog?.('start scrolling pages')
+              this.scrollingSettled = false
+            }
+            this.setScrollingSettled()
+
+            const itemPage = parseInt(target.dataset.page)
+            const pageInfo = this.pageInfo[itemPage]!
+
+            pageInfo.isIntersected = entry.isIntersecting
+
+            if (!pageInfo.firstAdded) {
+              if (entry.isIntersecting) {
+                this.lastIntersected = itemPage
+              } else {
+                wantPage = itemPage + (this.scrollDirection === 'up' ? -1 : +1)
+              }
+            }
+
+            pageInfo.firstAdded = false
+
+            if (wantPage != null) {
+              consoleLog?.('want page', wantPage)
+              this.scrollingPage = wantPage
+              this.setupPlaceholders(wantPage, this.scrollDirection)
+            }
+          }
+
+          if (this.needScrolling != null) {
+            if (entry.target === this.needScrolling && entry.isIntersecting) {
+              this.scrollingArrived = true
+              consoleLog?.('arrived!')
+            }
+            if (this.scrollingArrived) {
+              this.clearNeedScrolling()
+            }
+            return
+          }
+
+          if (wantPage != null) {
+            consoleLog?.('set page', wantPage, target, this.scrollDirection)
+            this.currentPage = wantPage
+          }
+        })
+      },
+      { threshold: 0.1 }
+    )
+  }
+
+  private async renderPage(pageNum: number, pageResult: PageResult<T> | null) {
+    if (!this._renderItem || !this.listElement) {
+      throw new Error('unexpected state')
+    }
+
+    const { info, created } = this.getOrCreatePage(pageNum)
+    const placeholder = info.page.querySelector('[data-placeholder]')
+
+    if (created) {
+      consoleLog?.('add page', info.page)
+      this.listElement.appendChild(info.page)
+    }
+
+    if (placeholder != null || created || info.hasError) {
+      info.page.querySelector('[data-error]')?.remove()
+
+      if (pageResult != null) {
+        consoleLog?.('rendering page items', pageNum)
+        info.hasError = false
+        for (const item of pageResult.items) {
+          const itemElement = await this._renderItem(item)
+          itemElement.dataset.isRenderedItem = 'true'
+          info.page.append(itemElement)
+        }
+        consoleLog?.('finished rendering page items', pageNum)
+      } else {
+        info.hasError = true
+        const el = document.createElement('div')
+        el.dataset.error = 'true'
+        el.innerText = 'Error loading page ' + pageNum
+        const height = info.pageHeight || this.approximatePageHeight
+        if (height > 0) {
+          el.style.height = `${height}px`
+        }
+        info.page.append(el)
+      }
+    }
+
+    if (placeholder != null) {
+      placeholder.remove()
+    }
+
+    if (!info.hasError) {
+      info.pageHeight = info.page.getBoundingClientRect().height
+    }
+
+    if (this.approximatePageHeight === -1 && !info.hasError) {
+      this.approximatePageHeight = info.page.getBoundingClientRect().height
+    }
+
+    return info.page
+  }
+
+  public async loadPageAround(middlePage: number) {
+    if (this.needScrolling != null) {
+      consoleLog?.('skip page around', middlePage, this.needScrolling)
+      return
+    }
+
+    consoleLog?.('load page around', middlePage)
+
+    this.setLoading(true)
+    let clearLoading = true
+    try {
+      const pagesToFetch = []
+      for (
+        let i = Math.max(1, middlePage - this.preloadPages);
+        i < Math.min(middlePage + this.preloadPages + 1, this.totalPages + 1);
+        i++
+      ) {
+        pagesToFetch.push(i)
+      }
+      consoleLog?.('pages to fetch', pagesToFetch)
+
+      const results = await Promise.all(
+        pagesToFetch.map((pageNum) =>
+          (async (pageNum) => {
+            this.pagesToClear.set(pageNum, false)
+            let pageResult = this.pageResultCache.get(pageNum)
+            if (
+              (pageResult == null || pageNum === middlePage) &&
+              this.currentPage === middlePage
+            ) {
+              try {
+                pageResult = (await this._fetchPage?.(pageNum))!
+                const addResult = this.pageResultCache.set(pageNum, pageResult)
+                if (addResult.deleted != null) {
+                  this.pagesToClear.set(addResult.deleted.currentPage, true)
+                }
+              } catch {}
+            }
+            return { pageNum, pageResult }
+          })(pageNum)
+        )
+      )
+
+      if (this.currentPage != middlePage) {
+        clearLoading = false
+        return
+      }
+
+      for (let { pageNum, pageResult } of results) {
+        if (pageResult != null && pageNum === middlePage) {
+          this.totalPages = pageResult.totalPages
+        }
+
+        if (pageResult?.items.length === 0) {
+          continue
+        }
+
+        await this.renderPage(pageNum, pageResult)
+      }
+
+      this.setupPlaceholders(middlePage, 'up')
+      this.setupPlaceholders(middlePage, 'down')
+
+      const pageInfo = this.pageInfo[middlePage]
+
+      this.needScrolling = pageInfo?.page ?? null
+      setTimeout(() => {
+        if (this.needScrolling == null) {
+          return
+        }
+
+        if (!pageInfo?.isIntersected) {
+          consoleLog?.('scroll into view', this.needScrolling, middlePage)
+          this.needScrolling.scrollIntoView({ behavior: 'instant' })
+        } else {
+          consoleLog?.('no need to scroll to', middlePage)
+          this.needScrolling = null
+        }
+      }, 1)
+
+      consoleLog?.('end of load page around', middlePage)
+    } catch (err) {
+      this.needScrolling = null
+      console.error(err)
+    } finally {
+      if (clearLoading) {
+        this.setLoading(false)
+      }
+    }
+  }
+
+  private getOrCreatePage(pageNum: number) {
+    if (!this.observer) {
+      throw new Error('unexpected state')
+    }
+
+    const created = this.pageInfo[pageNum] == null
+    if (this.pageInfo[pageNum] == null) {
+      const page = document.createElement('li')
+      this.pageInfo[pageNum] = {
+        isIntersected: false,
+        firstAdded: true,
+        page,
+        pageNum,
+        pageHeight: 0,
+        hasError: false,
+      }
+      page.dataset.page = pageNum.toString()
+      this.observer.observe(page)
+
+      if (DEBUG) {
+        const debugEl = document.createElement('div')
+        debugEl.classList.add('debug-p')
+        debugEl.textContent = pageNum.toString()
+        page.append(debugEl)
+      }
+    }
+
+    return { info: this.pageInfo[pageNum], created }
+  }
+
+  private clearPage(pageInfo: PageInfo) {
+    consoleLog?.('clearing page', pageInfo.pageNum)
+
+    const itemEls = pageInfo.page.querySelectorAll(
+      '[data-is-rendered-item=true]'
+    )
+    for (let el of itemEls) {
+      el.remove()
+      this.dispatchEvent(
+        new CustomEvent('item-removed', {
+          detail: {
+            item: el,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      )
+    }
+
+    if (pageInfo.page.querySelector('[data-placeholder=true]') == null) {
+      this.createPlaceholder(pageInfo)
+    }
+  }
+
+  private createPlaceholder(pageInfo: PageInfo) {
+    const placeholder = document.createElement('div')
+    placeholder.dataset.placeholder = 'true'
+    placeholder.classList.add('page-placeholder')
+
+    const height =
+      pageInfo.pageHeight > 0 ? pageInfo.pageHeight : this.approximatePageHeight
+    placeholder.style.height = `${height}px`
+
+    pageInfo.page.appendChild(placeholder)
+
+    consoleLog?.('create placeholder', pageInfo.pageNum)
+  }
+
+  private setupPlaceholder(
+    pageNum: number,
+    sibling: HTMLElement,
+    position: 'before' | 'after'
+  ) {
+    const { info, created } = this.getOrCreatePage(pageNum)
+
+    if (created) {
+      if (position === 'before') {
+        sibling.before(info.page)
+      } else {
+        sibling.after(info.page)
+      }
+
+      this.createPlaceholder(info)
+    }
+
+    return info.page
+  }
+
+  private setupPlaceholders(wantPage: number, direction: 'up' | 'down') {
+    const buffer = 10
+
+    let sibling = this.pageInfo[wantPage]?.page
+
+    if (sibling == null) {
+      return
+    }
+
+    if (direction === 'up') {
+      for (
+        let pageNum = wantPage - 1;
+        pageNum >= Math.max(wantPage - buffer - 1, 1);
+        pageNum--
+      ) {
+        if (this.pageInfo[pageNum] != null) {
+          sibling = this.pageInfo[pageNum]!.page
+          continue
+        }
+
+        sibling = this.setupPlaceholder(pageNum, sibling, 'before')
+      }
+    } else {
+      for (
+        let pageNum = wantPage + 1;
+        pageNum <= Math.min(wantPage + buffer + 1, this.totalPages);
+        pageNum++
+      ) {
+        if (this.pageInfo[pageNum] != null) {
+          sibling = this.pageInfo[pageNum]!.page
+          continue
+        }
+
+        sibling = this.setupPlaceholder(pageNum, sibling, 'after')
+      }
     }
   }
 }

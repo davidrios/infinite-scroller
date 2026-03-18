@@ -1,6 +1,11 @@
 {
-  "name": "infinite-scroller",
-  "version": "1.0.0",
+  "name": "wc-infinite-scroller",
+  "version": "0.0.1",
+  "description": "A native web-component implementation of an infinite scroller",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidrios/infinite-scroller.git"
+  },
   "type": "module",
   "files": [
     "dist"
@@ -21,10 +26,14 @@
     "lint": "eslint .",
     "format": "prettier --write ."
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": ["web-component", "custom-element", "infinite-scroll", "virtual-scroll", "wc"],
+  "sideEffects": false,
+  "author": "David Rios <david.rios.gomes@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/davidrios/infinite-scroller/issues"
+  },
+  "homepage": "https://github.com/davidrios/infinite-scroller",
   "devDependencies": {
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",

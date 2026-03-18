@@ -1,11 +1,25 @@
 :host {
   display: block;
-  padding: 20px;
-  background: #f0f0f0;
-  border: 1px solid #ccc;
-  font-family: sans-serif;
 }
-h2 {
-  margin-top: 0;
-  color: #333;
+
+.scroller-container {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-element=scroller-list] {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+[data-element=loading-indicator] {
+  padding: 16px;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+.page-placeholder {
+  width: 100%;
 }
