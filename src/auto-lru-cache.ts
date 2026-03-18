@@ -15,20 +15,22 @@ export class AutoLRUCache<T> {
   /**
    * Adds an item to the cache, evicting the least recently used item if at capacity.
    */
-  add(item: T): number {
+  add(item: T) {
     const id = this.currentId++
+    let deleted = null
 
     // If we are at capacity, remove the oldest accessed item
     if (this.cache.size >= this.capacity) {
       // cache.keys().next().value gets the very first (oldest) key in the Map
       const oldestId = this.cache.keys().next().value
       if (oldestId !== undefined) {
+        deleted = this.cache.get(oldestId)
         this.cache.delete(oldestId)
       }
     }
 
     this.cache.set(id, item)
-    return id
+    return { id, deleted: deleted }
   }
 
   /**

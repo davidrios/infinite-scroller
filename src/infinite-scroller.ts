@@ -14,9 +14,10 @@ export interface PageResult<T> {
 export type FetchPageFn<T> = (page: number) => Promise<PageResult<T>>
 export type RenderItemFn<T> = (item: T) => Promise<HTMLElement> | HTMLElement
 
-interface PageData {
+interface PageInfo {
   hasError: boolean
   page: HTMLElement
+  pageNum: number
   firstAdded: boolean
   isIntersected: boolean
   pageHeight: number
@@ -56,8 +57,9 @@ export class InfiniteScroller<T = any> extends HTMLElement {
   private observer: IntersectionObserver | null = null
   private loadedPages: Record<string, number | undefined> = {}
   private pageResultCache: AutoLRUCache<PageResult<T>>
-  private pageInfo: Record<string, PageData | undefined> = {}
+  private pageInfo: Record<string, PageInfo | undefined> = {}
   private totalPages: number = 0xffffff
+  private pagesToClear = new Map<number, boolean>()
   private lastScrollY: number = 0
   private scrollDirection: 'up' | 'down' = 'down'
   private scrollHandler: (() => void) | null = null
@@ -116,6 +118,15 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       }
 
       this.currentPage = this.scrollingPage
+
+      for (const [pageNum, clear] of this.pagesToClear) {
+        if (!clear || this.pageInfo[pageNum] == null) {
+          continue
+        }
+
+        this.clearPage(this.pageInfo[pageNum])
+      }
+      this.pagesToClear = new Map()
     }, 50)
   }
 
@@ -237,7 +248,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
             if (wantPage != null) {
               consoleLog?.('want page', wantPage)
               this.scrollingPage = wantPage
-              this.createExtraPlaceholders(wantPage, this.scrollDirection)
+              this.setupPlaceholders(wantPage, this.scrollDirection)
             }
           }
 
@@ -267,33 +278,36 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       throw new Error('unexpected state')
     }
 
-    const { data, created } = this.getOrCreatePage(pageNum)
-    const placeholder = data.page.querySelector('[data-placeholder]')
+    const { info, created } = this.getOrCreatePage(pageNum)
+    const placeholder = info.page.querySelector('[data-placeholder]')
 
     if (created) {
-      consoleLog?.('add page', data.page)
-      this.listElement.appendChild(data.page)
+      consoleLog?.('add page', info.page)
+      this.listElement.appendChild(info.page)
     }
 
-    if (placeholder != null || created || data.hasError) {
-      data.page.querySelector('[data-error]')?.remove()
+    if (placeholder != null || created || info.hasError) {
+      info.page.querySelector('[data-error]')?.remove()
 
       if (pageResult != null) {
-        data.hasError = false
+        consoleLog?.('rendering page items', pageNum)
+        info.hasError = false
         for (const item of pageResult.items) {
           const itemElement = await this._renderItem(item)
-          data.page.append(itemElement)
+          itemElement.dataset.isRenderedItem = 'true'
+          info.page.append(itemElement)
         }
+        consoleLog?.('finished rendering page items', pageNum)
       } else {
-        data.hasError = true
+        info.hasError = true
         const el = document.createElement('div')
         el.dataset.error = 'true'
         el.innerText = 'Error loading page ' + pageNum
-        const height = data.pageHeight || this.approximatePageHeight
+        const height = info.pageHeight || this.approximatePageHeight
         if (height > 0) {
           el.style.height = `${height}px`
         }
-        data.page.append(el)
+        info.page.append(el)
       }
     }
 
@@ -301,15 +315,15 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       placeholder.remove()
     }
 
-    if (!data.hasError) {
-      data.pageHeight = data.page.getBoundingClientRect().height
+    if (!info.hasError) {
+      info.pageHeight = info.page.getBoundingClientRect().height
     }
 
-    if (this.approximatePageHeight === -1 && !data.hasError) {
-      this.approximatePageHeight = data.page.getBoundingClientRect().height
+    if (this.approximatePageHeight === -1 && !info.hasError) {
+      this.approximatePageHeight = info.page.getBoundingClientRect().height
     }
 
-    return data.page
+    return info.page
   }
 
   public async loadPageAround(middlePage: number) {
@@ -336,14 +350,18 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       const results = await Promise.all(
         pagesToFetch.map((pageNum) =>
           (async (pageNum) => {
+            this.pagesToClear.set(pageNum, false)
             let pageResult = this.pageResultCache.getById(
               this.loadedPages[pageNum] ?? -1
             )
             if (pageResult == null && this.currentPage === middlePage) {
               try {
                 pageResult = (await this._fetchPage?.(pageNum))!
-                this.loadedPages[pageResult.currentPage] =
-                  this.pageResultCache.add(pageResult)
+                const addResult = this.pageResultCache.add(pageResult)
+                this.loadedPages[pageResult.currentPage] = addResult.id
+                if (addResult.deleted != null) {
+                  this.pagesToClear.set(addResult.deleted.currentPage, true)
+                }
               } catch {}
             }
             return { pageNum, pageResult }
@@ -368,8 +386,8 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         await this.renderPage(pageNum, pageResult)
       }
 
-      this.createExtraPlaceholders(middlePage, 'up')
-      this.createExtraPlaceholders(middlePage, 'down')
+      this.setupPlaceholders(middlePage, 'up')
+      this.setupPlaceholders(middlePage, 'down')
 
       const pageInfo = this.pageInfo[middlePage]
 
@@ -411,6 +429,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         isIntersected: false,
         firstAdded: true,
         page,
+        pageNum,
         pageHeight: 0,
         hasError: false,
       }
@@ -425,7 +444,45 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       }
     }
 
-    return { data: this.pageInfo[pageNum], created }
+    return { info: this.pageInfo[pageNum], created }
+  }
+
+  private clearPage(pageInfo: PageInfo) {
+    consoleLog?.('clearing page', pageInfo.pageNum)
+
+    const itemEls = pageInfo.page.querySelectorAll(
+      '[data-is-rendered-item=true]'
+    )
+    for (let el of itemEls) {
+      el.remove()
+      this.dispatchEvent(
+        new CustomEvent('item-removed', {
+          detail: {
+            item: el,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      )
+    }
+
+    if (pageInfo.page.querySelector('[data-placeholder=true]') == null) {
+      this.createPlaceholder(pageInfo)
+    }
+  }
+
+  private createPlaceholder(pageInfo: PageInfo) {
+    const placeholder = document.createElement('div')
+    placeholder.dataset.placeholder = 'true'
+    placeholder.classList.add('page-placeholder')
+
+    const height =
+      pageInfo.pageHeight > 0 ? pageInfo.pageHeight : this.approximatePageHeight
+    placeholder.style.height = `${height}px`
+
+    pageInfo.page.appendChild(placeholder)
+
+    consoleLog?.('create placeholder', pageInfo.pageNum)
   }
 
   private setupPlaceholder(
@@ -433,28 +490,22 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     sibling: HTMLElement,
     position: 'before' | 'after'
   ) {
-    const { data, created } = this.getOrCreatePage(pageNum)
+    const { info, created } = this.getOrCreatePage(pageNum)
 
     if (created) {
       if (position === 'before') {
-        sibling.before(data.page)
+        sibling.before(info.page)
       } else {
-        sibling.after(data.page)
+        sibling.after(info.page)
       }
 
-      const placeholder = document.createElement('div')
-      placeholder.dataset.placeholder = 'true'
-      placeholder.classList.add('page-placeholder')
-      placeholder.style.height = `${this.approximatePageHeight}px`
-      data.page.appendChild(placeholder)
-
-      consoleLog?.('create placeholder', pageNum, position)
+      this.createPlaceholder(info)
     }
 
-    return data.page
+    return info.page
   }
 
-  private createExtraPlaceholders(wantPage: number, direction: 'up' | 'down') {
+  private setupPlaceholders(wantPage: number, direction: 'up' | 'down') {
     const buffer = 10
 
     let sibling = this.pageInfo[wantPage]?.page
