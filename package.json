@@ -1,6 +1,6 @@
 {
   "name": "wc-infinite-scroller",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A native web-component implementation of an infinite scroller",
   "repository": {
     "type": "git",
@@ -15,6 +15,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/infinite-scroller.js",
       "require": "./dist/infinite-scroller.umd.cjs"
     }
