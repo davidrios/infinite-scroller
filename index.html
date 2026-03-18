@@ -67,7 +67,11 @@
         // Simulate network delay
         await new Promise((resolve) => setTimeout(resolve, 500))
 
-        const itemsPerPage = 4
+        if (Math.random() < 0.1) {
+          throw new Error('error!')
+        }
+
+        const itemsPerPage = 15
         const totalPages = 150
         if (page > totalPages) {
           return { items: [], currentPage: page, totalPages }
