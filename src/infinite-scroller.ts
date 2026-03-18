@@ -55,7 +55,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
   private listElement: HTMLUListElement | null = null
   private loadingElement: HTMLElement | null = null
   private observer: IntersectionObserver | null = null
-  private loadedPages: Record<string, number | undefined> = {}
   private pageResultCache: AutoLRUCache<PageResult<T>>
   private pageInfo: Record<string, PageInfo | undefined> = {}
   private totalPages: number = 0xffffff
@@ -351,14 +350,14 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         pagesToFetch.map((pageNum) =>
           (async (pageNum) => {
             this.pagesToClear.set(pageNum, false)
-            let pageResult = this.pageResultCache.getById(
-              this.loadedPages[pageNum] ?? -1
-            )
-            if (pageResult == null && this.currentPage === middlePage) {
+            let pageResult = this.pageResultCache.get(pageNum)
+            if (
+              (pageResult == null || pageNum === middlePage) &&
+              this.currentPage === middlePage
+            ) {
               try {
                 pageResult = (await this._fetchPage?.(pageNum))!
-                const addResult = this.pageResultCache.add(pageResult)
-                this.loadedPages[pageResult.currentPage] = addResult.id
+                const addResult = this.pageResultCache.set(pageNum, pageResult)
                 if (addResult.deleted != null) {
                   this.pagesToClear.set(addResult.deleted.currentPage, true)
                 }

@@ -1,7 +1,6 @@
 export class AutoLRUCache<T> {
   private capacity: number
   private cache: Map<number, T>
-  private currentId: number
 
   constructor(capacity: number) {
     if (capacity <= 0) {
@@ -9,14 +8,17 @@ export class AutoLRUCache<T> {
     }
     this.capacity = capacity
     this.cache = new Map<number, T>()
-    this.currentId = 1
   }
 
   /**
-   * Adds an item to the cache, evicting the least recently used item if at capacity.
+   * Set an item to the cache, evicting the least recently used item if at capacity.
    */
-  add(item: T) {
-    const id = this.currentId++
+  set(id: number, item: T) {
+    if (this.cache.has(id)) {
+      this.cache.delete(id)
+    }
+    this.cache.set(id, item)
+
     let deleted = null
 
     // If we are at capacity, remove the oldest accessed item
@@ -29,14 +31,13 @@ export class AutoLRUCache<T> {
       }
     }
 
-    this.cache.set(id, item)
     return { id, deleted: deleted }
   }
 
   /**
    * Retrieves an item by its ID and marks it as recently used.
    */
-  getById(id: number): T | null {
+  get(id: number): T | null {
     if (!this.cache.has(id)) {
       return null
     }
