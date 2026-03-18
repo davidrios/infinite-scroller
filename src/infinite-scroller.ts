@@ -22,6 +22,29 @@ interface PageData {
   pageHeight: number
 }
 
+const DEBUG = true
+const consoleLog = DEBUG
+  ? function (...args: unknown[]) {
+      console.log(...args)
+    }
+  : null
+
+let baseStyles = styles
+if (DEBUG) {
+  baseStyles += `
+  .page-placeholder {
+    border: 1px solid green;
+  }
+  ul[data-element="scroller-list"] > li > .debug-p {
+    background: yellow;
+    position: absolute;
+    padding: 1px;
+    font-family: monospace;
+    font-size: 0.7em;
+  }
+`
+}
+
 export class InfiniteScroller<T = any> extends HTMLElement {
   private _fetchPage?: DeduplicateAsyncFunction<
     Parameters<FetchPageFn<T>>,
@@ -65,7 +88,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     this.debouncedLoadPageAround = debounce(this.loadPageAround.bind(this), 200)
 
     this.clearNeedScrolling = debounce(() => {
-      console.log('clear need scrolling')
+      consoleLog?.('clear need scrolling')
       this.scrollingArrived = false
       this.needScrolling = null
     }, 1)
@@ -76,14 +99,14 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         this.lastIntersected > 0 &&
         Math.abs(this.lastIntersected - this.scrollingPage) > 2
       ) {
-        console.log('last insersected too far from scrolling page, adjusting')
+        consoleLog?.('last insersected too far from scrolling page, adjusting')
         this.scrollingPage = this.lastIntersected
       }
 
-      console.log('scrolling settled on', this.scrollingPage)
+      consoleLog?.('scrolling settled on', this.scrollingPage)
 
       if (this.needScrolling) {
-        console.log(
+        consoleLog?.(
           'scrolling settled, ignoring needScrolling',
           this.needScrolling,
           'and setting page to',
@@ -100,7 +123,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     if (this.shadowRoot && !this.shadowRoot.innerHTML) {
       this.shadowRoot.innerHTML = `
         <style>
-          ${styles}
+          ${baseStyles}
         </style>
         ${template}
 `
@@ -191,7 +214,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
           let wantPage: number | null = null
           if (target.dataset.page != null) {
             if (this.scrollingSettled) {
-              console.log('start scrolling pages')
+              consoleLog?.('start scrolling pages')
               this.scrollingSettled = false
             }
             this.setScrollingSettled()
@@ -212,7 +235,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
             pageInfo.firstAdded = false
 
             if (wantPage != null) {
-              console.log('want page', wantPage)
+              consoleLog?.('want page', wantPage)
               this.scrollingPage = wantPage
               this.createExtraPlaceholders(wantPage, this.scrollDirection)
             }
@@ -221,7 +244,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
           if (this.needScrolling != null) {
             if (entry.target === this.needScrolling && entry.isIntersecting) {
               this.scrollingArrived = true
-              console.log('arrived!')
+              consoleLog?.('arrived!')
             }
             if (this.scrollingArrived) {
               this.clearNeedScrolling()
@@ -230,7 +253,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
           }
 
           if (wantPage != null) {
-            console.log('set page', wantPage, target, this.scrollDirection)
+            consoleLog?.('set page', wantPage, target, this.scrollDirection)
             this.currentPage = wantPage
           }
         })
@@ -248,7 +271,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     const placeholder = data.page.querySelector('[data-placeholder]')
 
     if (created) {
-      console.log('add page', data.page)
+      consoleLog?.('add page', data.page)
       this.listElement.appendChild(data.page)
     }
 
@@ -291,11 +314,11 @@ export class InfiniteScroller<T = any> extends HTMLElement {
 
   public async loadPageAround(middlePage: number) {
     if (this.needScrolling != null) {
-      console.log('skip page around', middlePage, this.needScrolling)
+      consoleLog?.('skip page around', middlePage, this.needScrolling)
       return
     }
 
-    console.log('load page around', middlePage)
+    consoleLog?.('load page around', middlePage)
 
     this.setLoading(true)
     let clearLoading = true
@@ -308,7 +331,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       ) {
         pagesToFetch.push(i)
       }
-      console.log('pages to fetch', pagesToFetch)
+      consoleLog?.('pages to fetch', pagesToFetch)
 
       const results = await Promise.all(
         pagesToFetch.map((pageNum) =>
@@ -357,15 +380,15 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         }
 
         if (!pageInfo.isIntersected) {
-          console.log('scroll into view', this.needScrolling, middlePage)
+          consoleLog?.('scroll into view', this.needScrolling, middlePage)
           this.needScrolling.scrollIntoView({ behavior: 'instant' })
         } else {
-          console.log('no need to scroll to', middlePage)
+          consoleLog?.('no need to scroll to', middlePage)
           this.needScrolling = null
         }
       }, 1)
 
-      console.log('end of load page around', middlePage)
+      consoleLog?.('end of load page around', middlePage)
     } catch (err) {
       this.needScrolling = null
       console.error(err)
@@ -394,10 +417,12 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       page.dataset.page = pageNum.toString()
       this.observer.observe(page)
 
-      const debugEl = document.createElement('div')
-      debugEl.classList.add('page-sentinel')
-      debugEl.innerText = pageNum.toString()
-      page.appendChild(debugEl)
+      if (DEBUG) {
+        const debugEl = document.createElement('div')
+        debugEl.classList.add('debug-p')
+        debugEl.textContent = pageNum.toString()
+        page.append(debugEl)
+      }
     }
 
     return { data: this.pageInfo[pageNum], created }
@@ -423,7 +448,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       placeholder.style.height = `${this.approximatePageHeight}px`
       data.page.appendChild(placeholder)
 
-      console.log('create placeholder', pageNum, position)
+      consoleLog?.('create placeholder', pageNum, position)
     }
 
     return data.page

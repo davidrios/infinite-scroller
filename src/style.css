@@ -20,13 +20,6 @@
   font-style: italic;
 }
 
-.page-sentinel {
-  height: 1px;
-  width: 100%;
-  border: 1px solid red;
-}
-
 .page-placeholder {
   width: 100%;
-  border: 1px solid blue;
 }
