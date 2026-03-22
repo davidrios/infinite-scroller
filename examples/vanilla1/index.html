@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Infinite Scroller Demo</title>
+    <style>
+      body {
+        max-width: 600px;
+        margin: 40px auto;
+        padding: 0 20px;
+        background-color: #f9f9f9;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .item-card {
+        padding: 10px;
+        border: 1px solid blue;
+      }
+
+      .item-name {
+        font-weight: bold;
+        display: block;
+      }
+
+      .item-desc {
+        font-size: 0.9em;
+        color: #666;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Infinite Scroller Demo</h1>
+    <p>This demo shows the basic implementation fetching initial data.</p>
+
+    <infinite-scroller id="my-scroller"></infinite-scroller>
+
+    <script type="module" src="index.js"></script>
+  </body>
+</html>

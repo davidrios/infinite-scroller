@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Infinite Scroller Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+
+  <body class="container mx-auto min-h-screen p-4">
+    <h1>Infinite Scroller Demo</h1>
+    <p>This demo shows the basic implementation fetching initial data.</p>
+
+    <infinite-scroller id="my-scroller">
+      <!-- only the first element is used by the code -->
+      <ul class="grid gap-6"></ul>
+
+      <!-- this is just so that tailwind styles are imported correctly. can't be a <template> -->
+      <div
+        class="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+        style="display: none"
+      >
+        <div
+          class="group relative overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 hover:shadow-xl"
+          data-item-template
+        >
+          <div
+            class="aspect-w-1 aspect-h-1 xl:aspect-w-7 xl:aspect-h-8 w-full overflow-hidden bg-gray-200"
+          >
+            <img
+              class="h-full w-full object-cover object-center transition-opacity duration-300 group-hover:opacity-75"
+              data-content="image"
+            />
+          </div>
+          <div class="flex">
+            <button class="flex-grow overflow-hidden p-4 text-left">
+              <h3
+                class="truncate text-sm text-gray-500"
+                data-content="title"
+              ></h3>
+              <p class="mt-1 text-xs text-gray-400" data-content="caption"></p>
+            </button>
+          </div>
+          <button
+            class="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            data-content="view-button"
+          >
+            <span
+              class="rounded-full bg-white px-4 py-2 font-medium text-black transition-colors hover:bg-gray-100"
+              >View Details
+            </span>
+          </button>
+        </div>
+      </div>
+    </infinite-scroller>
+
+    <script type="module" src="index.js"></script>
+  </body>
+</html>

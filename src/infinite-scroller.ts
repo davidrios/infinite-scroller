@@ -30,30 +30,16 @@ const consoleLog = DEBUG
     }
   : null
 
-let baseStyles = styles
-if (DEBUG) {
-  baseStyles += `
-  .page-placeholder {
-    border: 1px solid green;
-  }
-  ul[data-element="scroller-list"] > li > .debug-p {
-    background: yellow;
-    position: absolute;
-    padding: 1px;
-    font-family: monospace;
-    font-size: 0.7em;
-  }
-`
-}
-
 export class InfiniteScroller<T = any> extends HTMLElement {
   private _fetchPage?: DeduplicateAsyncFunction<
     Parameters<FetchPageFn<T>>,
     PageResult<T>
   >
   private _renderItem?: RenderItemFn<T>
-  private listElement: HTMLUListElement | null = null
-  private loadingElement: HTMLElement | null = null
+  private _createPageElement?: () => HTMLElement
+  private _createPlaceholderElements?: () => HTMLElement[]
+  private _createErrorElement?: (estimatedHeight: number) => HTMLElement
+  private listElement: HTMLElement | null = null
   private observer: IntersectionObserver | null = null
   private pageResultCache: AutoLRUCache<PageResult<T>>
   private pageInfo: Record<string, PageInfo | undefined> = {}
@@ -61,7 +47,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
   private pagesToClear = new Map<number, boolean>()
   private lastScrollY: number = 0
   private scrollDirection: 'up' | 'down' = 'down'
-  private scrollHandler: (() => void) | null = null
+  private scrollHandler: () => void
   private approximatePageHeight: number = -1
   private debouncedLoadPageAround: (
     middlePage: number,
@@ -74,6 +60,13 @@ export class InfiniteScroller<T = any> extends HTMLElement {
   private setScrollingSettled: () => void
   private scrollingPage: number = -1
   private lastIntersected: number = -1
+  private isPointerDown: boolean = false
+  private isUserScroll: boolean = false
+  private handleUserScroll: () => void
+  private handleUserKeyboardScroll: (event: KeyboardEvent) => void
+  private setPointerDown: () => void
+  private unsetPointerDown: () => void
+  private unsetUserScroll: () => void
 
   constructor() {
     super()
@@ -98,9 +91,9 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       this.scrollingSettled = true
       if (
         this.lastIntersected > 0 &&
-        Math.abs(this.lastIntersected - this.scrollingPage) > 2
+        Math.abs(this.lastIntersected - this.scrollingPage) > 1
       ) {
-        consoleLog?.('last insersected too far from scrolling page, adjusting')
+        consoleLog?.('last intersected too far from scrolling page, adjusting')
         this.scrollingPage = this.lastIntersected
       }
 
@@ -118,47 +111,132 @@ export class InfiniteScroller<T = any> extends HTMLElement {
 
       this.currentPage = this.scrollingPage
 
-      for (const [pageNum, clear] of this.pagesToClear) {
-        if (!clear || this.pageInfo[pageNum] == null) {
-          continue
+      for (
+        let pageNum = this.currentPage + 1 + 10;
+        pageNum <= this.totalPages;
+        pageNum++
+      ) {
+        if (this.pageInfo[pageNum] != null) {
+          this.observer?.unobserve(this.pageInfo[pageNum]!.page)
+          this.pageInfo[pageNum]!.page.remove()
+          delete this.pageInfo[pageNum]
+        } else {
+          break
         }
-
-        this.clearPage(this.pageInfo[pageNum])
       }
-      this.pagesToClear = new Map()
+      for (let pageNum = this.currentPage - 1 - 10; pageNum >= 1; pageNum--) {
+        if (this.pageInfo[pageNum] != null) {
+          this.observer?.unobserve(this.pageInfo[pageNum]!.page)
+          this.pageInfo[pageNum]!.page.remove()
+          delete this.pageInfo[pageNum]
+        } else {
+          break
+        }
+      }
     }, 50)
-  }
 
-  render() {
-    if (this.shadowRoot && !this.shadowRoot.innerHTML) {
-      this.shadowRoot.innerHTML = `
-        <style>
-          ${baseStyles}
-        </style>
-        ${template}
-`
+    this.scrollHandler = () => {
+      const currentScrollY = window.scrollY
+      this.scrollDirection = currentScrollY > this.lastScrollY ? 'down' : 'up'
+      this.lastScrollY = currentScrollY
+
+      if (this.isUserScroll) {
+        this.unsetUserScroll()
+      }
+    }
+
+    this.handleUserScroll = () => {
+      this.isUserScroll = true
+      this.unsetUserScroll()
+    }
+
+    this.handleUserKeyboardScroll = (event: KeyboardEvent) => {
+      const keys = [
+        'ArrowUp',
+        'ArrowDown',
+        'Space',
+        'PageUp',
+        'PageDown',
+        'Home',
+        'End',
+      ]
+      if (keys.includes(event.code)) {
+        this.isUserScroll = true
+        this.unsetUserScroll()
+      }
+    }
+
+    this.unsetUserScroll = debounce(() => {
+      consoleLog?.('user stopped scrolling')
+      this.isUserScroll = false
+    }, 200)
+
+    this.setPointerDown = () => {
+      this.isPointerDown = true
+    }
+
+    this.unsetPointerDown = () => {
+      this.isPointerDown = false
     }
   }
 
   disconnectedCallback() {
     this.observer?.disconnect()
-    if (this.scrollHandler) {
-      window.removeEventListener('scroll', this.scrollHandler)
-    }
+    window.removeEventListener('scroll', this.scrollHandler)
+    window.removeEventListener('wheel', this.handleUserScroll)
+    window.removeEventListener('touchmove', this.handleUserScroll)
+    window.removeEventListener('keydown', this.handleUserKeyboardScroll)
+    window.removeEventListener('pointerdown', this.setPointerDown)
+    window.removeEventListener('pointerup', this.unsetPointerDown)
   }
 
   async connectedCallback() {
-    this.render()
+    if (!this.shadowRoot) {
+      return
+    }
 
-    this.listElement = this.shadowRoot?.querySelector(
-      '[data-element=scroller-list]'
-    )!
-    this.loadingElement = this.shadowRoot?.querySelector(
-      '[data-element=loading-indicator]'
-    )!
+    if (!this.innerHTML && !this.shadowRoot.innerHTML) {
+      this.shadowRoot.innerHTML = `
+  <style>
+    ${styles}
+  </style>
+  ${template}
+`
+      this.listElement = this.shadowRoot.querySelector(
+        '[data-element=scroller-list]'
+      )!
+    } else if (!this.shadowRoot.innerHTML) {
+      this.shadowRoot.innerHTML = this.innerHTML
+      this.listElement = this.shadowRoot.firstElementChild as HTMLElement
+    }
+    if (DEBUG) {
+      const style = document.createElement('style')
+      style.innerText = `
+  .page-placeholder {
+    border: 1px solid green;
+  }
+  .debug-p {
+    background: yellow;
+    position: absolute;
+    padding: 1px;
+    font-family: monospace;
+    font-size: 2em;
+    z-index: 2;
+  }
+`
+      this.shadowRoot.append(style)
+    }
 
     this.setupIntersectionObserver()
-    this.setupScrollListener()
+
+    window.addEventListener('scroll', this.scrollHandler)
+    window.addEventListener('wheel', this.handleUserScroll, { passive: true })
+    window.addEventListener('touchmove', this.handleUserScroll, {
+      passive: true,
+    })
+    window.addEventListener('keydown', this.handleUserKeyboardScroll)
+    window.addEventListener('pointerdown', this.setPointerDown)
+    window.addEventListener('pointerup', this.unsetPointerDown)
   }
 
   set fetchPage(fn: FetchPageFn<T>) {
@@ -167,6 +245,18 @@ export class InfiniteScroller<T = any> extends HTMLElement {
 
   set renderItem(fn: RenderItemFn<T>) {
     this._renderItem = fn
+  }
+
+  set createPageElement(fn: typeof this._createPageElement) {
+    this._createPageElement = fn
+  }
+
+  set createPlaceholderElements(fn: typeof this._createPlaceholderElements) {
+    this._createPlaceholderElements = fn
+  }
+
+  set createErrorElement(fn: typeof this._createErrorElement) {
+    this._createErrorElement = fn
   }
 
   async loadInitialPage() {
@@ -200,21 +290,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     }
   }
 
-  private setLoading(loading: boolean) {
-    if (this.loadingElement) {
-      this.loadingElement.style.display = loading ? 'block' : 'none'
-    }
-  }
-
-  private setupScrollListener() {
-    this.scrollHandler = () => {
-      const currentScrollY = window.scrollY
-      this.scrollDirection = currentScrollY > this.lastScrollY ? 'down' : 'up'
-      this.lastScrollY = currentScrollY
-    }
-    window.addEventListener('scroll', this.scrollHandler)
-  }
-
   private setupIntersectionObserver() {
     this.observer = new IntersectionObserver(
       (entries) => {
@@ -222,6 +297,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
           const target = entry.target as HTMLElement
 
           let wantPage: number | null = null
+          let preparePlaceholders: number | null = null
           if (target.dataset.page != null) {
             if (this.scrollingSettled) {
               consoleLog?.('start scrolling pages')
@@ -230,15 +306,22 @@ export class InfiniteScroller<T = any> extends HTMLElement {
             this.setScrollingSettled()
 
             const itemPage = parseInt(target.dataset.page)
-            const pageInfo = this.pageInfo[itemPage]!
+            const pageInfo = this.pageInfo[itemPage]
+            if (pageInfo == null) {
+              return
+            }
 
             pageInfo.isIntersected = entry.isIntersecting
 
-            if (!pageInfo.firstAdded) {
+            if (this.isUserScroll || this.isPointerDown) {
               if (entry.isIntersecting) {
                 this.lastIntersected = itemPage
               } else {
-                wantPage = itemPage + (this.scrollDirection === 'up' ? -1 : +1)
+                if (this.lastIntersected > 0) {
+                  wantPage = this.lastIntersected
+                }
+                preparePlaceholders =
+                  itemPage + (this.scrollDirection === 'up' ? -1 : +1)
               }
             }
 
@@ -247,7 +330,9 @@ export class InfiniteScroller<T = any> extends HTMLElement {
             if (wantPage != null) {
               consoleLog?.('want page', wantPage)
               this.scrollingPage = wantPage
-              this.setupPlaceholders(wantPage, this.scrollDirection)
+            }
+            if (preparePlaceholders != null) {
+              this.setupPlaceholders(preparePlaceholders, this.scrollDirection)
             }
           }
 
@@ -299,19 +384,24 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         consoleLog?.('finished rendering page items', pageNum)
       } else {
         info.hasError = true
-        const el = document.createElement('div')
-        el.dataset.error = 'true'
-        el.innerText = 'Error loading page ' + pageNum
         const height = info.pageHeight || this.approximatePageHeight
-        if (height > 0) {
-          el.style.height = `${height}px`
+        let el = this._createErrorElement?.(height)
+        if (el == null) {
+          el = document.createElement('div')
+          el.innerText = 'Error loading page ' + pageNum
+          if (height > 0) {
+            el.style.height = `${height}px`
+          }
         }
+        el.dataset.error = 'true'
         info.page.append(el)
       }
     }
 
     if (placeholder != null) {
-      placeholder.remove()
+      info.page
+        .querySelectorAll('[data-placeholder]')
+        .forEach((el) => el.remove())
     }
 
     if (!info.hasError) {
@@ -333,8 +423,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
 
     consoleLog?.('load page around', middlePage)
 
-    this.setLoading(true)
-    let clearLoading = true
     try {
       const pagesToFetch = []
       for (
@@ -369,7 +457,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       )
 
       if (this.currentPage != middlePage) {
-        clearLoading = false
         return
       }
 
@@ -409,10 +496,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     } catch (err) {
       this.needScrolling = null
       console.error(err)
-    } finally {
-      if (clearLoading) {
-        this.setLoading(false)
-      }
     }
   }
 
@@ -423,7 +506,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
 
     const created = this.pageInfo[pageNum] == null
     if (this.pageInfo[pageNum] == null) {
-      const page = document.createElement('li')
+      const page = this._createPageElement?.() ?? document.createElement('li')
       this.pageInfo[pageNum] = {
         isIntersected: false,
         firstAdded: true,
@@ -446,40 +529,22 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     return { info: this.pageInfo[pageNum], created }
   }
 
-  private clearPage(pageInfo: PageInfo) {
-    consoleLog?.('clearing page', pageInfo.pageNum)
-
-    const itemEls = pageInfo.page.querySelectorAll(
-      '[data-is-rendered-item=true]'
-    )
-    for (let el of itemEls) {
-      el.remove()
-      this.dispatchEvent(
-        new CustomEvent('item-removed', {
-          detail: {
-            item: el,
-          },
-          bubbles: true,
-          composed: true,
-        })
-      )
-    }
-
-    if (pageInfo.page.querySelector('[data-placeholder=true]') == null) {
-      this.createPlaceholder(pageInfo)
-    }
-  }
-
   private createPlaceholder(pageInfo: PageInfo) {
-    const placeholder = document.createElement('div')
-    placeholder.dataset.placeholder = 'true'
-    placeholder.classList.add('page-placeholder')
-
     const height =
       pageInfo.pageHeight > 0 ? pageInfo.pageHeight : this.approximatePageHeight
-    placeholder.style.height = `${height}px`
 
-    pageInfo.page.appendChild(placeholder)
+    if (this._createPlaceholderElements != null) {
+      for (const placeholder of this._createPlaceholderElements()) {
+        placeholder.dataset.placeholder = 'true'
+        pageInfo.page.appendChild(placeholder)
+      }
+    } else {
+      const placeholder = document.createElement('div')
+      placeholder.classList.add('page-placeholder')
+      placeholder.style.height = `${height}px`
+      placeholder.dataset.placeholder = 'true'
+      pageInfo.page.appendChild(placeholder)
+    }
 
     consoleLog?.('create placeholder', pageInfo.pageNum)
   }
@@ -525,6 +590,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         }
 
         sibling = this.setupPlaceholder(pageNum, sibling, 'before')
+        this.observer?.observe(sibling)
       }
     } else {
       for (
@@ -538,6 +604,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         }
 
         sibling = this.setupPlaceholder(pageNum, sibling, 'after')
+        this.observer?.observe(sibling)
       }
     }
   }
