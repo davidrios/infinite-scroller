@@ -58,7 +58,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
   private scrollingArrived: boolean = false
   private scrollingSettled: boolean = true
   private setScrollingSettled: () => void
-  private scrollingPage: number = -1
   private lastIntersected: number = -1
   private isPointerDown: boolean = false
   private isUserScroll: boolean = false
@@ -89,27 +88,14 @@ export class InfiniteScroller<T = any> extends HTMLElement {
 
     this.setScrollingSettled = debounce(() => {
       this.scrollingSettled = true
-      if (
-        this.lastIntersected > 0 &&
-        Math.abs(this.lastIntersected - this.scrollingPage) > 1
-      ) {
-        consoleLog?.('last intersected too far from scrolling page, adjusting')
-        this.scrollingPage = this.lastIntersected
-      }
-
-      consoleLog?.('scrolling settled on', this.scrollingPage)
 
       if (this.needScrolling) {
         consoleLog?.(
           'scrolling settled, ignoring needScrolling',
-          this.needScrolling,
-          'and setting page to',
-          this.scrollingPage
+          this.needScrolling
         )
         this.needScrolling = null
       }
-
-      this.currentPage = this.scrollingPage
 
       for (
         let pageNum = this.currentPage + 1 + 10;
@@ -260,7 +246,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
   }
 
   async loadInitialPage() {
-    this.scrollingPage = this.currentPage
     await this.loadPageAround(this.currentPage)
   }
 
@@ -327,10 +312,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
 
             pageInfo.firstAdded = false
 
-            if (wantPage != null) {
-              consoleLog?.('want page', wantPage)
-              this.scrollingPage = wantPage
-            }
             if (preparePlaceholders != null) {
               this.setupPlaceholders(preparePlaceholders, this.scrollDirection)
             }
