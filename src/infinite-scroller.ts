@@ -30,6 +30,8 @@ const consoleLog = DEBUG
     }
   : null
 
+const PAGES_BUFFER = 10
+
 export class InfiniteScroller<T = any> extends HTMLElement {
   private _fetchPage?: DeduplicateAsyncFunction<
     Parameters<FetchPageFn<T>>,
@@ -97,28 +99,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         this.needScrolling = null
       }
 
-      for (
-        let pageNum = this.currentPage + 1 + 10;
-        pageNum <= this.totalPages;
-        pageNum++
-      ) {
-        if (this.pageInfo[pageNum] != null) {
-          this.observer?.unobserve(this.pageInfo[pageNum]!.page)
-          this.pageInfo[pageNum]!.page.remove()
-          delete this.pageInfo[pageNum]
-        } else {
-          break
-        }
-      }
-      for (let pageNum = this.currentPage - 1 - 10; pageNum >= 1; pageNum--) {
-        if (this.pageInfo[pageNum] != null) {
-          this.observer?.unobserve(this.pageInfo[pageNum]!.page)
-          this.pageInfo[pageNum]!.page.remove()
-          delete this.pageInfo[pageNum]
-        } else {
-          break
-        }
-      }
+      this.removeUnusedPages()
     }, 50)
 
     this.scrollHandler = () => {
@@ -284,21 +265,26 @@ export class InfiniteScroller<T = any> extends HTMLElement {
           let wantPage: number | null = null
           let preparePlaceholders: number | null = null
           if (target.dataset.page != null) {
-            if (this.scrollingSettled) {
-              consoleLog?.('start scrolling pages')
-              this.scrollingSettled = false
-            }
-            this.setScrollingSettled()
-
             const itemPage = parseInt(target.dataset.page)
             const pageInfo = this.pageInfo[itemPage]
             if (pageInfo == null) {
               return
             }
 
+            if (!pageInfo.firstAdded) {
+              if (this.scrollingSettled) {
+                consoleLog?.('start scrolling pages')
+                this.scrollingSettled = false
+              }
+              this.setScrollingSettled()
+            }
+
             pageInfo.isIntersected = entry.isIntersecting
 
-            if (this.isUserScroll || this.isPointerDown) {
+            if (
+              (!pageInfo.firstAdded || entry.isIntersecting) &&
+              (this.isUserScroll || this.isPointerDown)
+            ) {
               if (entry.isIntersecting) {
                 this.lastIntersected = itemPage
               } else {
@@ -396,7 +382,64 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     return info.page
   }
 
-  public async loadPageAround(middlePage: number) {
+  private removePage(pageNum: number) {
+    this.observer?.unobserve(this.pageInfo[pageNum]!.page)
+    this.pageInfo[pageNum]!.page.remove()
+    this.pageInfo[pageNum]!.page.querySelectorAll(
+      '[data-is-rendered-item=true]'
+    ).forEach((el) => {
+      this.dispatchEvent(
+        new CustomEvent('item-element-removed', {
+          detail: el,
+          bubbles: true,
+          composed: true,
+        })
+      )
+    })
+    delete this.pageInfo[pageNum]
+  }
+
+  private removeOrphanPages() {
+    for (const key in this.pageInfo) {
+      const pageNum = parseInt(key)
+      if (
+        pageNum <= this.currentPage - 1 - PAGES_BUFFER ||
+        pageNum >= this.currentPage + 1 + PAGES_BUFFER
+      ) {
+        if (this.pageInfo[pageNum] != null) {
+          this.removePage(pageNum)
+        }
+      }
+    }
+  }
+
+  private removeUnusedPages() {
+    for (
+      let pageNum = this.currentPage + 1 + PAGES_BUFFER;
+      pageNum <= this.totalPages;
+      pageNum++
+    ) {
+      if (this.pageInfo[pageNum] != null) {
+        this.removePage(pageNum)
+      } else {
+        break
+      }
+    }
+    for (
+      let pageNum = this.currentPage - 1 - PAGES_BUFFER;
+      pageNum >= 1;
+      pageNum--
+    ) {
+      if (this.pageInfo[pageNum] != null) {
+        this.removePage(pageNum)
+      } else {
+        break
+      }
+    }
+    this.removeOrphanPages()
+  }
+
+  private async loadPageAround(middlePage: number) {
     if (this.needScrolling != null) {
       consoleLog?.('skip page around', middlePage, this.needScrolling)
       return
@@ -460,6 +503,8 @@ export class InfiniteScroller<T = any> extends HTMLElement {
 
       this.needScrolling = pageInfo?.page ?? null
       setTimeout(() => {
+        this.removeOrphanPages()
+
         if (this.needScrolling == null) {
           return
         }
@@ -471,7 +516,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
           consoleLog?.('no need to scroll to', middlePage)
           this.needScrolling = null
         }
-      }, 1)
+      }, 20)
 
       consoleLog?.('end of load page around', middlePage)
     } catch (err) {
@@ -551,8 +596,6 @@ export class InfiniteScroller<T = any> extends HTMLElement {
   }
 
   private setupPlaceholders(wantPage: number, direction: 'up' | 'down') {
-    const buffer = 10
-
     let sibling = this.pageInfo[wantPage]?.page
 
     if (sibling == null) {
@@ -562,7 +605,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     if (direction === 'up') {
       for (
         let pageNum = wantPage - 1;
-        pageNum >= Math.max(wantPage - buffer - 1, 1);
+        pageNum >= Math.max(wantPage - PAGES_BUFFER - 1, 1);
         pageNum--
       ) {
         if (this.pageInfo[pageNum] != null) {
@@ -576,7 +619,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
     } else {
       for (
         let pageNum = wantPage + 1;
-        pageNum <= Math.min(wantPage + buffer + 1, this.totalPages);
+        pageNum <= Math.min(wantPage + PAGES_BUFFER + 1, this.totalPages);
         pageNum++
       ) {
         if (this.pageInfo[pageNum] != null) {
