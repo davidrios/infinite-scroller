@@ -320,7 +320,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
           }
         })
       },
-      { threshold: 0.1 }
+      { threshold: 0 }
     )
   }
 
