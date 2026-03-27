@@ -52,7 +52,6 @@ scroller.fetchPage = async function(page) {
 }
 
 const itemTemplate = document.querySelector('[data-item-template]')
-console.log(itemTemplate)
 
 // Mock render function
 scroller.renderItem = function(item) {
@@ -68,9 +67,14 @@ scroller.renderItem = function(item) {
   return el
 }
 
-scroller.createPageElement = function() {
+scroller.createPageElement = function(pageNum) {
   const li = document.createElement('li')
   li.classList.add(...'grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'.split(' '))
+
+  const debugEl = document.createElement('div')
+  debugEl.classList.add('absolute', 'z-3', 'font-mono', 'p-1', 'bg-yellow-500', 'text-xl')
+  debugEl.textContent = pageNum.toString()
+  li.append(debugEl)
   return li
 }
 
