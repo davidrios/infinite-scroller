@@ -60,15 +60,28 @@ scroller.renderItem = (item) => {
 scroller.loadInitialPage()
 ```
 
+### Custom element template
+
+You can provide your own container element instead of the default `<ul>` list by placing HTML inside the component. The first child element will be used as the scroll container:
+
+```html
+<infinite-scroller id="scroller">
+  <div class="my-list"></div>
+</infinite-scroller>
+```
+
 ## API
 
 ### Properties
 
-| Property     | Type                                         | Description                                       |
-|--------------|----------------------------------------------|---------------------------------------------------|
-| `fetchPage`  | `(page: number) => Promise<PageResult<T>>`   | **Required.** Called to fetch a page of data.     |
-| `renderItem` | `(item: T) => HTMLElement \| Promise<HTMLElement>` | **Required.** Called to render each data item. |
-| `currentPage`| `number`                                     | Gets or sets the current page (triggers load).    |
+| Property                    | Type                                                      | Description                                                       |
+|-----------------------------|-----------------------------------------------------------|-------------------------------------------------------------------|
+| `fetchPage`                 | `(page: number) => Promise<PageResult<T>>`                | **Required.** Called to fetch a page of data.                     |
+| `renderItem`                | `(item: T) => HTMLElement \| Promise<HTMLElement>`        | **Required.** Called to render each data item.                    |
+| `currentPage`               | `number`                                                  | Gets or sets the current page (triggers load).                    |
+| `createPageElement`         | `() => HTMLElement`                                       | Optional. Factory for the wrapper element of each page.           |
+| `createPlaceholderElements` | `() => HTMLElement[]`                                     | Optional. Factory for placeholder elements shown while loading.   |
+| `createErrorElement`        | `(estimatedHeight: number) => HTMLElement`                | Optional. Factory for the element shown when a page fails to load.|
 
 ### Methods
 
@@ -78,25 +91,33 @@ scroller.loadInitialPage()
 
 ### Attributes
 
-| Attribute       | Default | Description                                                     |
-|-----------------|---------|-----------------------------------------------------------------|
-| `current-page`  | `1`     | Initial page to load.                                           |
-| `preload-pages` | `2`     | Number of pages to preload around the current page.             |
-| `cache-size`    | `preload-pages * 10`     | Minimum LRU cache size. |
+| Attribute       | Default                    | Description                                                 |
+|-----------------|----------------------------|-------------------------------------------------------------|
+| `current-page`  | `1`                        | Initial page to load.                                       |
+| `preload-pages` | `2`                        | Number of pages to preload around the current page.         |
+| `cache-size`    | `preload-pages * 10`       | Minimum LRU cache size.                                     |
 
 ### Events
 
-| Event          | Detail                              | Description                                             |
-|----------------|-------------------------------------|---------------------------------------------------------|
-| `page-changed` | `{ page, previousPage }`            | Fired when the visible page changes during scrolling.   |
-| `item-removed` | `{ item: HTMLElement }`             | Fired when a page item is removed from the DOM. |
+| Event                | Detail                                                                      | Description                                                   |
+|----------------------|-----------------------------------------------------------------------------|---------------------------------------------------------------|
+| `page-changed`       | `{ page: number, previousPage: number }`                                    | Fired when the visible page changes during scrolling.         |
+| `pages-fetched`      | `{ pages: { pageNum: number, pageResult: PageResult<T> \| null }[], mainPage: number }` | Fired after a batch of pages is fetched.    |
+| `item-element-removed` | `Element`                                                                 | Fired when a rendered item element is removed from the DOM.   |
 
 ## TypeScript
 
 Types are bundled. The `InfiniteScroller` class is generic:
 
 ```ts
-import { InfiniteScroller, register, type PageResult } from 'wc-infinite-scroller'
+import {
+  InfiniteScroller,
+  register,
+  type PageResult,
+  type PageChangedEvent,
+  type PagesFetchedEvent,
+  type ItemElementRemovedEvent,
+} from 'wc-infinite-scroller'
 
 interface MyItem {
   id: number
@@ -104,6 +125,11 @@ interface MyItem {
 }
 
 const scroller = document.querySelector('infinite-scroller') as InfiniteScroller<MyItem>
+
+scroller.addEventListener('pages-fetched', (e) => {
+  const event = e as PagesFetchedEvent<MyItem>
+  console.log('fetched pages', event.detail?.pages)
+})
 ```
 
 ## License
