@@ -1,6 +1,6 @@
 {
   "name": "wc-infinite-scroller",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "A native web-component implementation of an infinite scroller",
   "repository": {
     "type": "git",
