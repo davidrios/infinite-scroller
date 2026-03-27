@@ -14,6 +14,22 @@ export interface PageResult<T> {
 export type FetchPageFn<T> = (page: number) => Promise<PageResult<T>>
 export type RenderItemFn<T> = (item: T) => Promise<HTMLElement> | HTMLElement
 
+export interface PageChangedEvent extends Event {
+  detail?: {
+    page: number
+    previousPage: number
+  }
+}
+export interface PagesFetchedEvent<T> extends Event {
+  detail?: {
+    pages: { pageNum: number; pageResult: PageResult<T> | null }[]
+    mainPage: number
+  }
+}
+export interface ItemElementRemovedEvent extends Event {
+  detail?: Element
+}
+
 interface PageInfo {
   hasError: boolean
   page: HTMLElement
@@ -495,6 +511,17 @@ export class InfiniteScroller<T = any> extends HTMLElement {
       if (this.currentPage != middlePage) {
         return
       }
+
+      this.dispatchEvent(
+        new CustomEvent('pages-fetched', {
+          detail: {
+            pages: results,
+            mainPage: middlePage,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      )
 
       for (let { pageNum, pageResult } of results) {
         if (pageResult != null && pageNum === middlePage) {
