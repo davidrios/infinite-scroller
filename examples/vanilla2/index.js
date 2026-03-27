@@ -13,7 +13,7 @@ const setPage = debounce((page) => {
 }, 50)
 
 addEventListener('hashchange', (event) => {
-  const newPage = event.newURL.split('=')[1]
+  const newPage = event.newURL.split('=')[1] ?? '1'
   console.log('jump page', newPage)
   setPage(parseInt(newPage))
 })
