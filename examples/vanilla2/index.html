@@ -10,10 +10,20 @@
   <body class="container mx-auto min-h-screen p-4">
     <h1 class="text-2xl font-bold mb-4">Infinite Scroller Demo</h1>
 
+    <!-- Mobile toggle button: only visible on small screens -->
+    <button
+      id="settings-toggle"
+      aria-label="Open settings"
+      class="md:hidden fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-indigo-600 text-white shadow-2xl flex items-center justify-center text-xl transition-transform active:scale-90"
+    >
+      ⚙
+    </button>
+
     <!-- Floating settings panel -->
     <div
       id="settings-panel"
-      class="fixed bottom-6 right-6 z-50 rounded-2xl bg-white/80 backdrop-blur-md shadow-2xl border border-gray-200 p-5 flex flex-col gap-4"
+      class="fixed bottom-6 right-6 z-50 rounded-2xl bg-white/80 backdrop-blur-md shadow-2xl border border-gray-200 p-5 flex flex-col gap-4
+             translate-y-[calc(100%+1.5rem)] md:translate-y-0 transition-transform duration-300"
     >
       <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-widest">
         Settings

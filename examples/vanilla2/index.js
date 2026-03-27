@@ -30,6 +30,41 @@ jumpPageInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') jumpBtn?.click()
 })
 
+// --- Mobile panel toggle ---
+const settingsPanel = document.getElementById('settings-panel')
+const settingsToggle = document.getElementById('settings-toggle')
+
+function openPanel() {
+  settingsPanel?.classList.add('!translate-y-0')
+  settingsToggle?.setAttribute('aria-label', 'Close settings')
+  settingsToggle?.classList.replace('⚙', '✕')
+  if (settingsToggle) settingsToggle.textContent = '✕'
+}
+
+function closePanel() {
+  settingsPanel?.classList.remove('!translate-y-0')
+  settingsToggle?.setAttribute('aria-label', 'Open settings')
+  if (settingsToggle) settingsToggle.textContent = '⚙'
+}
+
+function isPanelOpen() {
+  return settingsPanel?.classList.contains('!translate-y-0') ?? false
+}
+
+settingsToggle?.addEventListener('click', () => {
+  isPanelOpen() ? closePanel() : openPanel()
+})
+
+document.addEventListener('touchstart', (e) => {
+  if (
+    isPanelOpen() &&
+    !settingsPanel?.contains(/** @type {Node} */ (e.target)) &&
+    !settingsToggle?.contains(/** @type {Node} */ (e.target))
+  ) {
+    closePanel()
+  }
+}, { passive: true })
+
 // --- Scroller events ---
 const setPageHash = debounce((page) => {
   window.location.hash = `page=${page}`
