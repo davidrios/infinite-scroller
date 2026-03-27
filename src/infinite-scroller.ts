@@ -48,7 +48,7 @@ const consoleLog = DEBUG
 
 const PAGES_BUFFER = 10
 
-export class InfiniteScroller<T = any> extends HTMLElement {
+export class InfiniteScroller<T> extends HTMLElement {
   private _fetchPage?: DeduplicateAsyncFunction<
     Parameters<FetchPageFn<T>>,
     PageResult<T>
@@ -501,7 +501,9 @@ export class InfiniteScroller<T = any> extends HTMLElement {
                 if (addResult.deleted != null) {
                   this.pagesToClear.set(addResult.deleted.currentPage, true)
                 }
-              } catch {}
+              } catch (e) {
+                console.error('error fetching page', pageNum, e)
+              }
             }
             return { pageNum, pageResult }
           })(pageNum)
@@ -523,7 +525,7 @@ export class InfiniteScroller<T = any> extends HTMLElement {
         })
       )
 
-      for (let { pageNum, pageResult } of results) {
+      for (const { pageNum, pageResult } of results) {
         if (pageResult != null && pageNum === middlePage) {
           this.totalPages = pageResult.totalPages
         }
