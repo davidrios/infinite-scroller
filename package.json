@@ -22,12 +22,18 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc -p tsconfig.nojs.json && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
-  "keywords": ["web-component", "custom-element", "infinite-scroll", "virtual-scroll", "wc"],
+  "keywords": [
+    "web-component",
+    "custom-element",
+    "infinite-scroll",
+    "virtual-scroll",
+    "wc"
+  ],
   "sideEffects": false,
   "author": "David Rios <david.rios.gomes@gmail.com>",
   "license": "MIT",
