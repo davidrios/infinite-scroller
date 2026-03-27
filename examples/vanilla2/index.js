@@ -4,8 +4,40 @@ register()
 
 const scroller = /** @type {import('/src/index.ts').InfiniteScroller<any>} */ (document.getElementById('my-scroller'))
 
+const searchParams = new URLSearchParams(window.location.search)
+// --- Settings state ---
+const itemsPerPage = parseInt(searchParams.get('page-size') ?? '15')
+const totalPages = parseInt(searchParams.get('total-pages') ?? '3000')
+
+const pageSizeInput = document.getElementById('setting-page-size')
+const totalPagesInput = document.getElementById('setting-total-pages')
+const jumpPageInput = document.getElementById('setting-jump-page')
+const jumpBtn = document.getElementById('setting-jump-btn')
+const currentPageDisplay = document.getElementById('setting-current-page')
+
+pageSizeInput.value = itemsPerPage.toString()
+totalPagesInput.value = totalPages.toString()
+
+jumpBtn?.addEventListener('click', () => {
+  const page = parseInt(jumpPageInput.value)
+  if (page > 0) {
+    scroller.currentPage = page
+    jumpPageInput.value = ''
+  }
+})
+
+jumpPageInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') jumpBtn?.click()
+})
+
+// --- Scroller events ---
+const setPageHash = debounce((page) => {
+  window.location.hash = `page=${page}`
+}, 50)
+
 scroller.addEventListener('page-changed', (e) => {
-  window.location.hash = `page=${e.detail.page}`
+  setPageHash(e.detail.page.toString())
+  if (currentPageDisplay) currentPageDisplay.textContent = e.detail.page.toString()
 })
 
 const setPage = debounce((page) => {
@@ -13,27 +45,25 @@ const setPage = debounce((page) => {
 }, 50)
 
 addEventListener('hashchange', (event) => {
-  const newPage = event.newURL.split('=')[1] ?? '1'
+  const urlSplit = event.newURL.split('=')
+  const newPage = urlSplit[urlSplit.length - 1] ?? '1'
   console.log('jump page', newPage)
   setPage(parseInt(newPage))
 })
 
 const currentPage = (window.location.hash || 'page=1').split('=')[1]
 scroller.setAttribute('current-page', currentPage)
-
-const itemsPerPage = 15
+if (currentPageDisplay) currentPageDisplay.textContent = currentPage
 
 // Mock fetch function
 scroller.fetchPage = async function(page) {
   console.log(`Fetching page ${page}...`)
-  // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 500))
 
   if (Math.random() < 0.1) {
     throw new Error('error!')
   }
 
-  const totalPages = 3000
   if (page > totalPages) {
     return { items: [], currentPage: page, totalPages }
   }
@@ -95,4 +125,3 @@ scroller.createPlaceholderElements = function() {
 }
 
 scroller.loadInitialPage()
-

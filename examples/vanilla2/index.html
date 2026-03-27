@@ -8,8 +8,77 @@
   </head>
 
   <body class="container mx-auto min-h-screen p-4">
-    <h1>Infinite Scroller Demo</h1>
-    <p>This demo shows the basic implementation fetching initial data.</p>
+    <h1 class="text-2xl font-bold mb-4">Infinite Scroller Demo</h1>
+
+    <!-- Floating settings panel -->
+    <div
+      id="settings-panel"
+      class="fixed bottom-6 right-6 z-50 rounded-2xl bg-white/80 backdrop-blur-md shadow-2xl border border-gray-200 p-5 flex flex-col gap-4"
+    >
+      <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-widest">
+        Settings
+      </h2>
+
+      <form method="get" class="flex flex-col gap-4">
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-gray-500">Items per page</span>
+          <input
+            id="setting-page-size"
+            type="number"
+            min="1"
+            max="100"
+            value="15"
+            class="rounded-lg border border-gray-400 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            name="page-size"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-gray-500">Total pages</span>
+          <input
+            id="setting-total-pages"
+            type="number"
+            min="1"
+            value="3000"
+            class="rounded-lg border border-gray-400 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            name="total-pages"
+          />
+        </label>
+
+        <button
+          id="setting-update-btn"
+          class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 active:scale-95 transition-all"
+          type="submit"
+        >
+          Update
+        </button>
+      </form>
+
+      <div class="h-px bg-gray-200"></div>
+
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-gray-500">Jump to page</span>
+        <div class="flex gap-2">
+          <input
+            id="setting-jump-page"
+            type="number"
+            min="1"
+            placeholder="Page #"
+            class="flex-1 rounded-lg border border-gray-400 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+          <button
+            id="setting-jump-btn"
+            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 active:scale-95 transition-all"
+          >
+            Go
+          </button>
+        </div>
+      </label>
+
+      <p class="text-xs text-gray-400">
+        Current page: <span id="setting-current-page">1</span>
+      </p>
+    </div>
 
     <infinite-scroller id="my-scroller">
       <!-- only the first element is used by the code -->
