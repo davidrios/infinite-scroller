@@ -7,13 +7,13 @@
   flex-direction: column;
 }
 
-[data-element=scroller-list] {
+[data-element='scroller-list'] {
   list-style-type: none;
   padding: 0;
   margin: 0;
 }
 
-[data-element=loading-indicator] {
+[data-element='loading-indicator'] {
   padding: 16px;
   text-align: center;
   color: #666;

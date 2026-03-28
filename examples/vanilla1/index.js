@@ -2,7 +2,9 @@ import { register } from '/src/index.ts'
 import { debounce } from '/src/utils.ts'
 register()
 
-const scroller = /** @type {import('/src/index.ts').InfiniteScroller} */ (document.getElementById('my-scroller'))
+const scroller = /** @type {import('/src/index.ts').InfiniteScroller} */ (
+  document.getElementById('my-scroller')
+)
 
 scroller.addEventListener('page-changed', (e) => {
   window.location.hash = `page=${e.detail.page}`
@@ -62,4 +64,3 @@ scroller.renderItem = (item) => {
 }
 
 scroller.loadInitialPage()
-

@@ -2,7 +2,9 @@ import { register } from '/src/index.ts'
 import { debounce } from '/src/utils.ts'
 register()
 
-const scroller = /** @type {import('/src/index.ts').InfiniteScroller<any>} */ (document.getElementById('my-scroller'))
+const scroller = /** @type {import('/src/index.ts').InfiniteScroller<any>} */ (
+  document.getElementById('my-scroller')
+)
 
 const searchParams = new URLSearchParams(window.location.search)
 // --- Settings state ---
@@ -55,15 +57,19 @@ settingsToggle?.addEventListener('click', () => {
   isPanelOpen() ? closePanel() : openPanel()
 })
 
-document.addEventListener('touchstart', (e) => {
-  if (
-    isPanelOpen() &&
-    !settingsPanel?.contains(/** @type {Node} */ (e.target)) &&
-    !settingsToggle?.contains(/** @type {Node} */ (e.target))
-  ) {
-    closePanel()
-  }
-}, { passive: true })
+document.addEventListener(
+  'touchstart',
+  (e) => {
+    if (
+      isPanelOpen() &&
+      !settingsPanel?.contains(/** @type {Node} */ (e.target)) &&
+      !settingsToggle?.contains(/** @type {Node} */ (e.target))
+    ) {
+      closePanel()
+    }
+  },
+  { passive: true }
+)
 
 // --- Scroller events ---
 const setPageHash = debounce((page) => {
@@ -72,7 +78,8 @@ const setPageHash = debounce((page) => {
 
 scroller.addEventListener('page-changed', (e) => {
   setPageHash(e.detail.page.toString())
-  if (currentPageDisplay) currentPageDisplay.textContent = e.detail.page.toString()
+  if (currentPageDisplay)
+    currentPageDisplay.textContent = e.detail.page.toString()
 })
 
 const setPage = debounce((page) => {
@@ -91,7 +98,7 @@ scroller.setAttribute('current-page', currentPage)
 if (currentPageDisplay) currentPageDisplay.textContent = currentPage
 
 // Mock fetch function
-scroller.fetchPage = async function(page) {
+scroller.fetchPage = async function (page) {
   console.log(`Fetching page ${page}...`)
   await new Promise((resolve) => setTimeout(resolve, 500))
 
@@ -119,40 +126,53 @@ scroller.fetchPage = async function(page) {
 const itemTemplate = document.querySelector('[data-item-template]')
 
 // Mock render function
-scroller.renderItem = function(item) {
+scroller.renderItem = function (item) {
   const el = itemTemplate?.cloneNode()
   el.innerHTML = itemTemplate.innerHTML
   el.querySelector('[data-content=title]').innerText = item.name
   el.querySelector('[data-content=caption]').innerText = item.description
-  el.querySelector('[data-content=image').src = `https://picsum.photos/seed/${item.id}/240/320`
+  el.querySelector('[data-content=image').src =
+    `https://picsum.photos/seed/${item.id}/240/320`
   el.dataset.loadedEvent = 'loaded'
-  setTimeout(function() {
+  setTimeout(function () {
     el.dispatchEvent(new CustomEvent('loaded'))
   }, 200)
   return el
 }
 
-scroller.createPageElement = function(pageNum) {
+scroller.createPageElement = function (pageNum) {
   const li = document.createElement('li')
-  li.classList.add(...'grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'.split(' '))
+  li.classList.add(
+    ...'grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'.split(
+      ' '
+    )
+  )
 
   const debugEl = document.createElement('div')
-  debugEl.classList.add('absolute', 'z-3', 'font-mono', 'p-1', 'bg-yellow-500', 'text-xl')
+  debugEl.classList.add(
+    'absolute',
+    'z-3',
+    'font-mono',
+    'p-1',
+    'bg-yellow-500',
+    'text-xl'
+  )
   debugEl.textContent = pageNum.toString()
   li.append(debugEl)
   return li
 }
 
-scroller.createPlaceholderElements = function() {
+scroller.createPlaceholderElements = function () {
   const elements = []
   for (let i = 0; i < itemsPerPage; i++) {
     const el = itemTemplate?.cloneNode()
     el.innerHTML = itemTemplate.innerHTML
     el.querySelector('[data-content=view-button]').remove()
-    el.querySelector('[data-content=title]').innerText = "Loading"
-    el.querySelector('[data-content=caption]').innerText = "Loading"
+    el.querySelector('[data-content=title]').innerText = 'Loading'
+    el.querySelector('[data-content=caption]').innerText = 'Loading'
     const img = el.querySelector('[data-content=image')
-    img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    img.src =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
     elements.push(el)
   }
 

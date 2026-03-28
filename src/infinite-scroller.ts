@@ -573,7 +573,8 @@ export class InfiniteScroller<T> extends HTMLElement {
 
     const created = this.pageInfo[pageNum] == null
     if (this.pageInfo[pageNum] == null) {
-      const page = this._createPageElement?.(pageNum) ?? document.createElement('li')
+      const page =
+        this._createPageElement?.(pageNum) ?? document.createElement('li')
       this.pageInfo[pageNum] = {
         isIntersected: false,
         firstAdded: true,
