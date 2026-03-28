@@ -362,6 +362,11 @@ export class InfiniteScroller<T> extends HTMLElement {
 
     if (created) {
       consoleLog?.('add page', info.page)
+    }
+
+    if (this.pageInfo[pageNum - 1]?.page != null) {
+      this.pageInfo[pageNum - 1]?.page.after(info.page)
+    } else {
       this.listElement.appendChild(info.page)
     }
 
@@ -624,13 +629,13 @@ export class InfiniteScroller<T> extends HTMLElement {
   ) {
     const { info, created } = this.getOrCreatePage(pageNum)
 
-    if (created) {
-      if (position === 'before') {
-        sibling.before(info.page)
-      } else {
-        sibling.after(info.page)
-      }
+    if (position === 'before') {
+      sibling.before(info.page)
+    } else {
+      sibling.after(info.page)
+    }
 
+    if (created) {
       this.createPlaceholder(info)
     }
 
@@ -650,11 +655,6 @@ export class InfiniteScroller<T> extends HTMLElement {
         pageNum >= Math.max(wantPage - PAGES_BUFFER - 1, 1);
         pageNum--
       ) {
-        if (this.pageInfo[pageNum] != null) {
-          sibling = this.pageInfo[pageNum]!.page
-          continue
-        }
-
         sibling = this.setupPlaceholder(pageNum, sibling, 'before')
         this.observer?.observe(sibling)
       }
@@ -664,11 +664,6 @@ export class InfiniteScroller<T> extends HTMLElement {
         pageNum <= Math.min(wantPage + PAGES_BUFFER + 1, this.totalPages);
         pageNum++
       ) {
-        if (this.pageInfo[pageNum] != null) {
-          sibling = this.pageInfo[pageNum]!.page
-          continue
-        }
-
         sibling = this.setupPlaceholder(pageNum, sibling, 'after')
         this.observer?.observe(sibling)
       }
