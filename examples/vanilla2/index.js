@@ -53,9 +53,9 @@ function isPanelOpen() {
   return settingsPanel?.classList.contains('!translate-y-0') ?? false
 }
 
-settingsToggle?.addEventListener('click', () => {
+settingsToggle?.addEventListener('click', () =>
   isPanelOpen() ? closePanel() : openPanel()
-})
+)
 
 document.addEventListener(
   'touchstart',

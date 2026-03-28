@@ -5,7 +5,7 @@ import globals from 'globals'
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'node_modules'],
+    ignores: ['dist', 'dist-examples', 'node_modules'],
   },
   {
     extends: [
