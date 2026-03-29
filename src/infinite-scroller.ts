@@ -358,9 +358,13 @@ export class InfiniteScroller<T> extends HTMLElement {
       consoleLog?.('add page', info.page)
     }
 
-    if (this.pageInfo[pageNum - 1]?.page != null) {
-      this.pageInfo[pageNum - 1]?.page.after(info.page)
-    } else {
+    const prevPage = this.pageInfo[pageNum - 1]?.page
+
+    if (prevPage != null) {
+      if (prevPage.nextElementSibling !== info.page) {
+        prevPage.after(info.page)
+      }
+    } else if (created) {
       this.listElement.appendChild(info.page)
     }
 
@@ -624,9 +628,13 @@ export class InfiniteScroller<T> extends HTMLElement {
     const { info, created } = this.getOrCreatePage(pageNum)
 
     if (position === 'before') {
-      sibling.before(info.page)
+      if (sibling.previousElementSibling !== info.page) {
+        sibling.before(info.page)
+      }
     } else {
-      sibling.after(info.page)
+      if (sibling.nextElementSibling !== info.page) {
+        sibling.after(info.page)
+      }
     }
 
     if (created) {
