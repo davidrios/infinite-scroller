@@ -312,12 +312,6 @@ export class InfiniteScroller<T> extends HTMLElement {
                       this.lastIntersected < this.currentPage))
                 ) {
                   wantPage = this.lastIntersected
-                  console.log(
-                    'want',
-                    this.lastIntersected,
-                    this.currentPage,
-                    this.scrollDirection
-                  )
                 }
                 preparePlaceholders =
                   itemPage + (this.scrollDirection === 'up' ? -1 : +1)
